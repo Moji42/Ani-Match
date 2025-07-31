@@ -1,0 +1,16 @@
+# Ignore virtual environment
+venv/
+
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+
+# Ignore Jupyter Notebook checkpoints (if any)
+.ipynb_checkpoints/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore output files (for now)
+anime_clean.csv
