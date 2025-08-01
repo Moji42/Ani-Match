@@ -72,7 +72,7 @@ def get_recommendations(title, df, similarity_matrix, n = 5):
     # Find the index of the anime
     idx = df.index[df['name'] == title].tolist()[0]
 
-    # Get the similarity scores
+    # Get the similarity scores 
     sim_scores = list(enumerate(similarity_matrix[idx]))
 
     # Will retrieve the top n recommendations besides itself
