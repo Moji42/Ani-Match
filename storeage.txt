@@ -1,0 +1,30 @@
+def get_recommendations(title, df, similarity_matrix, n=5):
+    """Improved recommendation function with better matching and error handling"""
+    try:
+        # More flexible title matching with exact match priority
+        exact_matches = df['name'].str.lower() == title.lower()
+        contains_matches = df['name'].str.contains(title, case=False, regex=False)
+        
+        if exact_matches.any():
+            idx = exact_matches.idxmax()
+        elif contains_matches.any():
+            print(f"No exact match for '{title}', showing similar titles")
+            idx = contains_matches.idxmax()
+        else:
+            print(f"No anime found matching '{title}'")
+            return pd.DataFrame(columns=['Anime', 'Similarity Score'])
+        
+        # Get top n similar items
+        sim_scores = sorted(enumerate(similarity_matrix[idx]), 
+                          key=lambda x: x[1], reverse=True)[1:n+1]
+        
+        return pd.DataFrame({
+            'Anime': df['name'].iloc[[i[0] for i in sim_scores]].values,
+            'Similarity Score': [f"{i[1]:.2f}" for i in sim_scores],
+            'Rating': df['rating'].iloc[[i[0] for i in sim_scores]].values,
+            'Genres': df['genre'].iloc[[i[0] for i in sim_scores]].values
+        })
+        
+    except Exception as e:
+        print(f"Error getting recommendations: {str(e)}")
+        return pd.DataFrame(columns=['Anime', 'Similarity Score'])

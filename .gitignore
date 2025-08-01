@@ -13,4 +13,10 @@ __pycache__/
 Thumbs.db
 
 # Ignore output files (for now)
-anime_clean.csv
+data/anime_clean.csv
+
+# Ignore dataset for now
+data/rating.csv
+data/anime.csv
+
+# Ignore storage.txt (Notes on functions)
