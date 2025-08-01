@@ -32,7 +32,6 @@ def load_and_preprocess_data(filepath):
     df = df.assign(rating = lambda x: x['rating'].fillna(rating_mean))
 
     # Normalize ratings
-
     def safe_normalize(series):
         range_val = series.max() - series.min()
         if range_val == 0:
@@ -68,33 +67,36 @@ def build_similarity_matrix(features):
     return similarity_matrix
     
 def get_recommendations(title, df, similarity_matrix, n = 5):
-   
-    # Find the index of the anime
-    idx = df.index[df['name'] == title].tolist()[0]
+    try:
+        # A more flexible title matching with exact match priority
+        exact_matches = df['name'].str.lower() == title.lower()
+        contains_matches = df['name'].str.contains(title,case=False,regex = False)
 
-    # Get the similarity scores 
-    sim_scores = list(enumerate(similarity_matrix[idx]))
+        if exact_matches.any():
+            idx = exact_matches.idxmax()
+        elif contains_matches.any():
+                print(f"No matches for '{title}'")
+                return pd.DataFrame(columns =['Anime', 'Similairty Score'])
+        
+        # We can now get the top n similar items
+        sim_scores = sorted(enumerate(similarity_matrix[idx]),
+                        key=lambda x: x[1],reverse=True)[1:n+1]
+        
+        return pd.DataFrame({
+            'Anime': df['name'].iloc[[i[0] for i in sim_scores]].values,
+            'Similarity Score': [f"{i[1]:.2f}" for i in sim_scores],
+            'Rating': df['rating'].iloc[[i[0] for i in sim_scores]].values,
+            'Genres': df['genre'].iloc[[i[0] for i in sim_scores]].values
+        })
+        
+    except Exception as e:
+        print(f"Error getting recommendations: {str(e)}")
+        return pd.DataFrame(columns=['Anime', 'Similarity Score'])     
 
-    # Will retrieve the top n recommendations besides itself
-    sim_scores = sim_scores[1:n+1]
-    anime_indices = [i[0] for i in sim_scores]
-
-    # More flexible title matching
-    matches = df['name'].str.contains(title, case =False, regex= False)
-    if not matches.any():
-        print(f"No anime found with '{title}' in title")
-        return pd.Series([])
-    
-    idx = df.index[matches].tolist()[0]  # Take first match  
-
-    recommendations = df['name'].iloc[anime_indices]
-    scores = [score[1] for score in sim_scores] # Gathers the similarities scores
-
-    return pd.DataFrame({'Anime': recommendations, 'Similarity Score': scores})
 
 # This will be a test usage
 if __name__ == "__main__":
-    # Use this exact path format for Windows/WSL
+    # Windows/WSL format 
     data_path = os.path.join(os.path.dirname(__file__), '../data/anime_clean.csv')
     df, features = load_and_preprocess_data(data_path)
     
