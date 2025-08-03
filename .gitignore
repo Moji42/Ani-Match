@@ -20,3 +20,5 @@ data/rating.csv
 data/anime.csv
 
 # Ignore storage.txt (Notes on functions)
+storage.txt
+
