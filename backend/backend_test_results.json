@@ -1,0 +1,812 @@
+{
+  "health_check": {
+    "status_code": 200,
+    "response": {
+      "message": "Recommendation service is running",
+      "status": "healthy"
+    },
+    "error": null
+  },
+  "content_based": {
+    "case_1": {
+      "params": {
+        "title": "Naruto",
+        "n": 5
+      },
+      "result": {
+        "status_code": 200,
+        "response": [
+          {
+            "Anime": "Naruto: Shippuuden",
+            "Content_Score": 0.9996617255040554,
+            "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+            "Rating": 7.94,
+            "Similarity Score": "1.00"
+          },
+          {
+            "Anime": "Naruto: Shippuuden Movie 4 - The Lost Tower",
+            "Content_Score": 0.9946561059395115,
+            "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+            "Rating": 7.53,
+            "Similarity Score": "0.99"
+          },
+          {
+            "Anime": "Dragon Ball Z",
+            "Content_Score": 0.8496945255549234,
+            "Genres": "['Action', 'Adventure', 'Comedy', 'Fantasy', 'Martial Arts', 'Shounen', 'Super Power']",
+            "Rating": 8.32,
+            "Similarity Score": "0.85"
+          },
+          {
+            "Anime": "Medaka Box Abnormal",
+            "Content_Score": 0.8447037180944962,
+            "Genres": "['Action', 'Comedy', 'Ecchi', 'Martial Arts', 'School', 'Shounen', 'Super Power']",
+            "Rating": 7.63,
+            "Similarity Score": "0.84"
+          },
+          {
+            "Anime": "Naruto: Shippuuden Movie 3 - Hi no Ishi wo Tsugu Mono",
+            "Content_Score": 0.9946298161701853,
+            "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+            "Rating": 7.5,
+            "Similarity Score": "0.99"
+          }
+        ],
+        "error": null
+      }
+    },
+    "case_2": {
+      "params": {
+        "title": "Narut",
+        "n": 3
+      },
+      "result": {
+        "status_code": 200,
+        "response": [
+          {
+            "Anime": "Naruto: Shippuuden",
+            "Content_Score": 0.9996617255040554,
+            "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+            "Rating": 7.94,
+            "Similarity Score": "1.00"
+          },
+          {
+            "Anime": "Naruto: Shippuuden Movie 4 - The Lost Tower",
+            "Content_Score": 0.9946561059395115,
+            "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+            "Rating": 7.53,
+            "Similarity Score": "0.99"
+          },
+          {
+            "Anime": "Naruto: Shippuuden Movie 3 - Hi no Ishi wo Tsugu Mono",
+            "Content_Score": 0.9946298161701853,
+            "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+            "Rating": 7.5,
+            "Similarity Score": "0.99"
+          }
+        ],
+        "error": null
+      }
+    },
+    "case_3": {
+      "params": {
+        "title": "",
+        "n": 5
+      },
+      "result": {
+        "status_code": 400,
+        "response": {
+          "error": "Title parameter is required"
+        },
+        "error": null
+      }
+    },
+    "case_4": {
+      "params": {
+        "title": "A",
+        "n": 5
+      },
+      "result": {
+        "status_code": 400,
+        "response": {
+          "error": "Title must be a string with at least 2 characters"
+        },
+        "error": null
+      }
+    },
+    "case_5": {
+      "params": {
+        "title": "Nonexistent Anime Title 12345",
+        "n": 5
+      },
+      "result": {
+        "status_code": 404,
+        "response": {
+          "error": "No recommendations found"
+        },
+        "error": null
+      }
+    },
+    "case_6": {
+      "params": {
+        "title": 12345,
+        "n": 5
+      },
+      "result": {
+        "status_code": 404,
+        "response": {
+          "error": "No recommendations found"
+        },
+        "error": null
+      }
+    }
+  },
+  "collab_based": {
+    "case_1": {
+      "params": {
+        "user_id": 1,
+        "n": 5
+      },
+      "result": {
+        "status_code": 200,
+        "response": [
+          {
+            "Anime": "Gintama\u00b0",
+            "Collab_Score": 0.9034668213091388,
+            "Genres": [
+              "['Action'",
+              "'Comedy'",
+              "'Historical'",
+              "'Parody'",
+              "'Samurai'",
+              "'Sci-Fi'",
+              "'Shounen']"
+            ],
+            "Predicted Rating": 9.03
+          },
+          {
+            "Anime": "Ginga Eiyuu Densetsu",
+            "Collab_Score": 0.9034118983875195,
+            "Genres": [
+              "['Drama'",
+              "'Military'",
+              "'Sci-Fi'",
+              "'Space']"
+            ],
+            "Predicted Rating": 9.03
+          },
+          {
+            "Anime": "Kimi no Na wa.",
+            "Collab_Score": 0.8976727992780311,
+            "Genres": [
+              "['Drama'",
+              "'Romance'",
+              "'School'",
+              "'Supernatural']"
+            ],
+            "Predicted Rating": 8.98
+          },
+          {
+            "Anime": "Kizumonogatari II: Nekketsu-hen",
+            "Collab_Score": 0.8968264400563111,
+            "Genres": [
+              "['Action'",
+              "'Mystery'",
+              "'Supernatural'",
+              "'Vampire']"
+            ],
+            "Predicted Rating": 8.97
+          },
+          {
+            "Anime": "Fullmetal Alchemist: Brotherhood",
+            "Collab_Score": 0.894676164732035,
+            "Genres": [
+              "['Action'",
+              "'Adventure'",
+              "'Drama'",
+              "'Fantasy'",
+              "'Magic'",
+              "'Military'",
+              "'Shounen']"
+            ],
+            "Predicted Rating": 8.95
+          }
+        ],
+        "error": null
+      }
+    },
+    "case_2": {
+      "params": {
+        "user_id": 999999,
+        "n": 5
+      },
+      "result": {
+        "status_code": 200,
+        "response": [
+          {
+            "Anime": "Death Note",
+            "Genres": [
+              "['Mystery'",
+              "'Police'",
+              "'Psychological'",
+              "'Supernatural'",
+              "'Thriller']"
+            ],
+            "Predicted Rating": 8.71
+          },
+          {
+            "Anime": "Shingeki no Kyojin",
+            "Genres": [
+              "['Action'",
+              "'Drama'",
+              "'Fantasy'",
+              "'Shounen'",
+              "'Super Power']"
+            ],
+            "Predicted Rating": 8.54
+          },
+          {
+            "Anime": "Sword Art Online",
+            "Genres": [
+              "['Action'",
+              "'Adventure'",
+              "'Fantasy'",
+              "'Game'",
+              "'Romance']"
+            ],
+            "Predicted Rating": 7.83
+          },
+          {
+            "Anime": "Fullmetal Alchemist: Brotherhood",
+            "Genres": [
+              "['Action'",
+              "'Adventure'",
+              "'Drama'",
+              "'Fantasy'",
+              "'Magic'",
+              "'Military'",
+              "'Shounen']"
+            ],
+            "Predicted Rating": 9.26
+          },
+          {
+            "Anime": "Angel Beats!",
+            "Genres": [
+              "['Action'",
+              "'Comedy'",
+              "'Drama'",
+              "'School'",
+              "'Supernatural']"
+            ],
+            "Predicted Rating": 8.39
+          }
+        ],
+        "error": null
+      }
+    },
+    "case_3": {
+      "params": {
+        "user_id": 0,
+        "n": 5
+      },
+      "result": {
+        "status_code": 400,
+        "response": {
+          "error": "user_id must be a positive integer"
+        },
+        "error": null
+      }
+    },
+    "case_4": {
+      "params": {
+        "user_id": -1,
+        "n": 5
+      },
+      "result": {
+        "status_code": 400,
+        "response": {
+          "error": "user_id must be a positive integer"
+        },
+        "error": null
+      }
+    },
+    "case_5": {
+      "params": {
+        "user_id": "abc",
+        "n": 5
+      },
+      "result": {
+        "status_code": 400,
+        "response": {
+          "error": "user_id parameter is required"
+        },
+        "error": null
+      }
+    },
+    "case_6": {
+      "params": {
+        "user_id": null,
+        "n": 5
+      },
+      "result": {
+        "status_code": 400,
+        "response": {
+          "error": "user_id parameter is required"
+        },
+        "error": null
+      }
+    }
+  },
+  "hybrid_based": {
+    "case_1": {
+      "params": {
+        "title": "Naruto",
+        "user_id": 1,
+        "n": 5
+      },
+      "result": {
+        "status_code": 200,
+        "response": {
+          "collaborative": [
+            {
+              "Anime": "Gintama\u00b0",
+              "Collab_Score": 0.9034668213091388,
+              "Genres": [
+                "['Action'",
+                "'Comedy'",
+                "'Historical'",
+                "'Parody'",
+                "'Samurai'",
+                "'Sci-Fi'",
+                "'Shounen']"
+              ],
+              "Predicted Rating": 9.03
+            },
+            {
+              "Anime": "Ginga Eiyuu Densetsu",
+              "Collab_Score": 0.9034118983875195,
+              "Genres": [
+                "['Drama'",
+                "'Military'",
+                "'Sci-Fi'",
+                "'Space']"
+              ],
+              "Predicted Rating": 9.03
+            },
+            {
+              "Anime": "Kimi no Na wa.",
+              "Collab_Score": 0.8976727992780311,
+              "Genres": [
+                "['Drama'",
+                "'Romance'",
+                "'School'",
+                "'Supernatural']"
+              ],
+              "Predicted Rating": 8.98
+            },
+            {
+              "Anime": "Kizumonogatari II: Nekketsu-hen",
+              "Collab_Score": 0.8968264400563111,
+              "Genres": [
+                "['Action'",
+                "'Mystery'",
+                "'Supernatural'",
+                "'Vampire']"
+              ],
+              "Predicted Rating": 8.97
+            },
+            {
+              "Anime": "Fullmetal Alchemist: Brotherhood",
+              "Collab_Score": 0.894676164732035,
+              "Genres": [
+                "['Action'",
+                "'Adventure'",
+                "'Drama'",
+                "'Fantasy'",
+                "'Magic'",
+                "'Military'",
+                "'Shounen']"
+              ],
+              "Predicted Rating": 8.95
+            }
+          ],
+          "content_based": [
+            {
+              "Anime": "Naruto: Shippuuden",
+              "Content_Score": 0.9996617255040554,
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Rating": 7.94,
+              "Similarity Score": "1.00"
+            },
+            {
+              "Anime": "Naruto: Shippuuden Movie 4 - The Lost Tower",
+              "Content_Score": 0.9946561059395115,
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Rating": 7.53,
+              "Similarity Score": "0.99"
+            },
+            {
+              "Anime": "Dragon Ball Z",
+              "Content_Score": 0.8496945255549234,
+              "Genres": "['Action', 'Adventure', 'Comedy', 'Fantasy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Rating": 8.32,
+              "Similarity Score": "0.85"
+            },
+            {
+              "Anime": "Medaka Box Abnormal",
+              "Content_Score": 0.8447037180944962,
+              "Genres": "['Action', 'Comedy', 'Ecchi', 'Martial Arts', 'School', 'Shounen', 'Super Power']",
+              "Rating": 7.63,
+              "Similarity Score": "0.84"
+            },
+            {
+              "Anime": "Naruto: Shippuuden Movie 3 - Hi no Ishi wo Tsugu Mono",
+              "Content_Score": 0.9946298161701853,
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Rating": 7.5,
+              "Similarity Score": "0.99"
+            }
+          ],
+          "hybrid": [
+            {
+              "Anime": "Naruto: Shippuuden",
+              "Combined_Score": "0.600",
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Method": "content",
+              "Rating": 7.94,
+              "Similarity Score": "1.00"
+            },
+            {
+              "Anime": "Naruto: Shippuuden Movie 4 - The Lost Tower",
+              "Combined_Score": "0.594",
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Method": "content",
+              "Rating": 7.53,
+              "Similarity Score": "0.99"
+            },
+            {
+              "Anime": "Naruto: Shippuuden Movie 3 - Hi no Ishi wo Tsugu Mono",
+              "Combined_Score": "0.594",
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Method": "content",
+              "Rating": 7.5,
+              "Similarity Score": "0.99"
+            },
+            {
+              "Anime": "Dragon Ball Z",
+              "Combined_Score": "0.510",
+              "Genres": "['Action', 'Adventure', 'Comedy', 'Fantasy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Method": "content",
+              "Rating": 8.32,
+              "Similarity Score": "0.85"
+            },
+            {
+              "Anime": "Medaka Box Abnormal",
+              "Combined_Score": "0.504",
+              "Genres": "['Action', 'Comedy', 'Ecchi', 'Martial Arts', 'School', 'Shounen', 'Super Power']",
+              "Method": "content",
+              "Rating": 7.63,
+              "Similarity Score": "0.84"
+            }
+          ]
+        },
+        "error": null
+      }
+    },
+    "case_2": {
+      "params": {
+        "title": "Narut",
+        "user_id": 1,
+        "n": 3
+      },
+      "result": {
+        "status_code": 200,
+        "response": {
+          "collaborative": [
+            {
+              "Anime": "Gintama\u00b0",
+              "Collab_Score": 0.9034668213091388,
+              "Genres": [
+                "['Action'",
+                "'Comedy'",
+                "'Historical'",
+                "'Parody'",
+                "'Samurai'",
+                "'Sci-Fi'",
+                "'Shounen']"
+              ],
+              "Predicted Rating": 9.03
+            },
+            {
+              "Anime": "Ginga Eiyuu Densetsu",
+              "Collab_Score": 0.9034118983875195,
+              "Genres": [
+                "['Drama'",
+                "'Military'",
+                "'Sci-Fi'",
+                "'Space']"
+              ],
+              "Predicted Rating": 9.03
+            },
+            {
+              "Anime": "Kimi no Na wa.",
+              "Collab_Score": 0.8976727992780311,
+              "Genres": [
+                "['Drama'",
+                "'Romance'",
+                "'School'",
+                "'Supernatural']"
+              ],
+              "Predicted Rating": 8.98
+            }
+          ],
+          "content_based": [
+            {
+              "Anime": "Naruto: Shippuuden",
+              "Content_Score": 0.9996617255040554,
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Rating": 7.94,
+              "Similarity Score": "1.00"
+            },
+            {
+              "Anime": "Naruto: Shippuuden Movie 4 - The Lost Tower",
+              "Content_Score": 0.9946561059395115,
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Rating": 7.53,
+              "Similarity Score": "0.99"
+            },
+            {
+              "Anime": "Naruto: Shippuuden Movie 3 - Hi no Ishi wo Tsugu Mono",
+              "Content_Score": 0.9946298161701853,
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Rating": 7.5,
+              "Similarity Score": "0.99"
+            }
+          ],
+          "hybrid": [
+            {
+              "Anime": "Naruto: Shippuuden",
+              "Combined_Score": "0.600",
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Method": "content",
+              "Rating": 7.94,
+              "Similarity Score": "1.00"
+            },
+            {
+              "Anime": "Naruto: Shippuuden Movie 4 - The Lost Tower",
+              "Combined_Score": "0.594",
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Method": "content",
+              "Rating": 7.53,
+              "Similarity Score": "0.99"
+            },
+            {
+              "Anime": "Naruto: Shippuuden Movie 3 - Hi no Ishi wo Tsugu Mono",
+              "Combined_Score": "0.594",
+              "Genres": "['Action', 'Comedy', 'Martial Arts', 'Shounen', 'Super Power']",
+              "Method": "content",
+              "Rating": 7.5,
+              "Similarity Score": "0.99"
+            }
+          ]
+        },
+        "error": null
+      }
+    },
+    "case_3": {
+      "params": {
+        "title": "Naruto",
+        "user_id": 999999,
+        "n": 5
+      },
+      "result": {
+        "status_code": 500,
+        "response": {
+          "error": "Internal server error"
+        },
+        "error": null
+      }
+    },
+    "case_4": {
+      "params": {
+        "title": "",
+        "user_id": 1,
+        "n": 5
+      },
+      "result": {
+        "status_code": 400,
+        "response": {
+          "error": "Both title and user_id are required"
+        },
+        "error": null
+      }
+    },
+    "case_5": {
+      "params": {
+        "title": "Naruto",
+        "user_id": 0,
+        "n": 5
+      },
+      "result": {
+        "status_code": 400,
+        "response": {
+          "error": "Invalid user_id"
+        },
+        "error": null
+      }
+    },
+    "case_6": {
+      "params": {
+        "title": 12345,
+        "user_id": 1,
+        "n": 5
+      },
+      "result": {
+        "status_code": 200,
+        "response": {
+          "collaborative": [
+            {
+              "Anime": "Gintama\u00b0",
+              "Collab_Score": 0.9034668213091388,
+              "Genres": [
+                "['Action'",
+                "'Comedy'",
+                "'Historical'",
+                "'Parody'",
+                "'Samurai'",
+                "'Sci-Fi'",
+                "'Shounen']"
+              ],
+              "Predicted Rating": 9.03
+            },
+            {
+              "Anime": "Ginga Eiyuu Densetsu",
+              "Collab_Score": 0.9034118983875195,
+              "Genres": [
+                "['Drama'",
+                "'Military'",
+                "'Sci-Fi'",
+                "'Space']"
+              ],
+              "Predicted Rating": 9.03
+            },
+            {
+              "Anime": "Kimi no Na wa.",
+              "Collab_Score": 0.8976727992780311,
+              "Genres": [
+                "['Drama'",
+                "'Romance'",
+                "'School'",
+                "'Supernatural']"
+              ],
+              "Predicted Rating": 8.98
+            },
+            {
+              "Anime": "Kizumonogatari II: Nekketsu-hen",
+              "Collab_Score": 0.8968264400563111,
+              "Genres": [
+                "['Action'",
+                "'Mystery'",
+                "'Supernatural'",
+                "'Vampire']"
+              ],
+              "Predicted Rating": 8.97
+            },
+            {
+              "Anime": "Fullmetal Alchemist: Brotherhood",
+              "Collab_Score": 0.894676164732035,
+              "Genres": [
+                "['Action'",
+                "'Adventure'",
+                "'Drama'",
+                "'Fantasy'",
+                "'Magic'",
+                "'Military'",
+                "'Shounen']"
+              ],
+              "Predicted Rating": 8.95
+            }
+          ],
+          "content_based": [],
+          "hybrid": [
+            {
+              "Anime": "Gintama\u00b0",
+              "Combined_Score": "0.361",
+              "Genres": [
+                "['Action'",
+                "'Comedy'",
+                "'Historical'",
+                "'Parody'",
+                "'Samurai'",
+                "'Sci-Fi'",
+                "'Shounen']"
+              ],
+              "Method": "collab",
+              "Predicted Rating": 9.03
+            },
+            {
+              "Anime": "Ginga Eiyuu Densetsu",
+              "Combined_Score": "0.361",
+              "Genres": [
+                "['Drama'",
+                "'Military'",
+                "'Sci-Fi'",
+                "'Space']"
+              ],
+              "Method": "collab",
+              "Predicted Rating": 9.03
+            },
+            {
+              "Anime": "Kimi no Na wa.",
+              "Combined_Score": "0.359",
+              "Genres": [
+                "['Drama'",
+                "'Romance'",
+                "'School'",
+                "'Supernatural']"
+              ],
+              "Method": "collab",
+              "Predicted Rating": 8.98
+            },
+            {
+              "Anime": "Kizumonogatari II: Nekketsu-hen",
+              "Combined_Score": "0.359",
+              "Genres": [
+                "['Action'",
+                "'Mystery'",
+                "'Supernatural'",
+                "'Vampire']"
+              ],
+              "Method": "collab",
+              "Predicted Rating": 8.97
+            },
+            {
+              "Anime": "Fullmetal Alchemist: Brotherhood",
+              "Combined_Score": "0.358",
+              "Genres": [
+                "['Action'",
+                "'Adventure'",
+                "'Drama'",
+                "'Fantasy'",
+                "'Magic'",
+                "'Military'",
+                "'Shounen']"
+              ],
+              "Method": "collab",
+              "Predicted Rating": 8.95
+            }
+          ]
+        },
+        "error": null
+      }
+    },
+    "case_7": {
+      "params": {
+        "title": "Naruto",
+        "user_id": null,
+        "n": 5
+      },
+      "result": {
+        "status_code": 400,
+        "response": {
+          "error": "Both title and user_id are required"
+        },
+        "error": null
+      }
+    },
+    "case_8": {
+      "params": {
+        "title": null,
+        "user_id": 1,
+        "n": 5
+      },
+      "result": {
+        "status_code": 400,
+        "response": {
+          "error": "Both title and user_id are required"
+        },
+        "error": null
+      }
+    }
+  }
+}
