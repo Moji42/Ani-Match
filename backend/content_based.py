@@ -5,9 +5,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 from difflib import get_close_matches  # For fuzzy matching
 
 # Constants (adjustable weights)
-GENRE_WEIGHT = 0.7
-RATING_WEIGHT = 0.2
-POPULARITY_WEIGHT = 0.1
+GENRE_WEIGHT = 0.4
+RATING_WEIGHT = 0.4
+POPULARITY_WEIGHT = 0.2
 
 def load_and_preprocess_data(filepath):
     if not os.path.exists(filepath):
