@@ -22,3 +22,7 @@ data/anime.csv
 # Ignore storage.txt (Notes on functions)
 storage.txt
 
+
+# Ignore models for now (Space related training takes 2-5 mins)
+
+backend/collab_model.pkl
