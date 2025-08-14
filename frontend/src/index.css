@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Anime-inspired design system with vibrant colors and gradients */
+
+@layer base {
+  :root {
+    /* Green and grey color palette */
+    --background: 210 15% 8%;
+    --foreground: 210 10% 95%;
+
+    --card: 210 20% 12%;
+    --card-foreground: 210 10% 92%;
+
+    --popover: 210 25% 15%;
+    --popover-foreground: 210 10% 92%;
+
+    --primary: 142 85% 45%;
+    --primary-foreground: 210 10% 95%;
+    --primary-glow: 142 90% 60%;
+
+    --secondary: 210 15% 25%;
+    --secondary-foreground: 210 10% 95%;
+    --secondary-glow: 210 20% 40%;
+
+    --muted: 210 15% 18%;
+    --muted-foreground: 210 10% 70%;
+
+    --accent: 158 75% 50%;
+    --accent-foreground: 210 10% 95%;
+    --accent-glow: 158 85% 65%;
+
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 300 20% 95%;
+
+    --border: 245 20% 18%;
+    --input: 245 25% 12%;
+    --ring: 260 85% 55%;
+
+    --radius: 0.75rem;
+
+    /* Anime-inspired gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-secondary: linear-gradient(135deg, hsl(var(--secondary)), hsl(var(--secondary-glow)));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent-glow)));
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)), hsl(var(--accent)));
+    --gradient-card: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(245 25% 10%) 100%);
+
+    /* Glow effects */
+    --glow-primary: 0 0 20px hsl(var(--primary-glow) / 0.3);
+    --glow-secondary: 0 0 20px hsl(var(--secondary-glow) / 0.3);
+    --glow-accent: 0 0 20px hsl(var(--accent-glow) / 0.3);
+
+    /* Shadows */
+    --shadow-card: 0 8px 32px hsl(240 15% 4% / 0.4);
+    --shadow-glow: 0 0 40px hsl(var(--primary) / 0.2);
+
+    /* Animation */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+}
+
+@layer components {
+  .anime-card {
+    @apply bg-gradient-to-br from-card to-card/80 backdrop-blur-sm border border-border/50;
+    @apply rounded-xl p-6 transition-all duration-300;
+    @apply hover:shadow-[var(--shadow-card)] hover:border-primary/30 hover:scale-[1.02];
+    box-shadow: var(--shadow-card);
+  }
+
+  .anime-card:hover {
+    box-shadow: var(--shadow-card), var(--glow-primary);
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent;
+  }
+
+  .gradient-button {
+    @apply bg-gradient-to-r from-primary to-secondary text-primary-foreground;
+    @apply hover:from-primary-glow hover:to-secondary-glow transition-all duration-300;
+    @apply hover:shadow-[var(--glow-primary)] hover:scale-105;
+  }
+
+  .gradient-button-accent {
+    @apply bg-gradient-to-r from-accent to-primary text-accent-foreground;
+    @apply hover:from-accent-glow hover:to-primary-glow transition-all duration-300;
+    @apply hover:shadow-[var(--glow-accent)] hover:scale-105;
+  }
+
+  .anime-input {
+    @apply bg-input/50 border border-border/50 backdrop-blur-sm;
+    @apply focus:border-primary/50 focus:ring-1 focus:ring-primary/20;
+    @apply transition-all duration-300;
+  }
+
+  .anime-input:focus {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.2), var(--glow-primary);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
