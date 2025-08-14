@@ -182,6 +182,35 @@ def hybrid_based():
         logger.error(f"Error in hybrid recommendations: {str(e)}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
+@app.route('/recommend/random', methods=['GET'])
+@cache.cached(timeout=CONFIG['cache_timeout'], query_string=True)
+def random_recommendations():
+    try:
+        n = request.args.get('n', default=CONFIG['default_recommendations'], type=int)
+        
+        # Validate input
+        if n < 1 or n > 100:  # Set reasonable limits
+            n = CONFIG['default_recommendations']
+        
+        # Get random sample from the dataset
+        random_sample = df.sample(n=n)
+        
+        # Format the response similar to other endpoints
+        recommendations = []
+        for _, row in random_sample.iterrows():
+            recommendations.append({
+                'Anime': row['name'],
+                'Genres': row['genre'],
+                'Rating': row['rating'],
+                'Type': 'random',
+                'Members': row['members']
+            })
+        
+        return jsonify(recommendations)
+    
+    except Exception as e:
+        logger.error(f"Error in random recommendations: {str(e)}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 def merge_recommendations(content_recs, collab_recs):
     # Handle case where new user gets popular items without Collab_Score
