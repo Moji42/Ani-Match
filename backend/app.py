@@ -8,8 +8,11 @@ import os
 import logging
 from functools import lru_cache
 from flask_caching import Cache
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -112,22 +115,25 @@ except (FileNotFoundError, EOFError, AttributeError) as e:
     pickle.dump(collab_model, open('collab_model.pkl', 'wb'))
 
 # Recommendation Endpoints
+
 @app.route('/recommend/content', methods=['GET'])
 @cache.cached(timeout=CONFIG['cache_timeout'], query_string=True)
 def content_based():
     title = request.args.get('title', default='', type=str)
     n = request.args.get('n', default=CONFIG['default_recommendations'], type=int)
 
+    # Validation
     if not title:
         return jsonify({"error": "Title parameter is required"}), 400
-
-    if not isinstance(title, str) or len(title.strip()) < 2:
-        return jsonify({"error": "Title must be a string with at least 2 characters"}), 400
+    if len(title.strip()) < 2:
+        return jsonify({"error": "Title must be at least 2 characters"}), 400
 
     recommendations = get_recommendations(title, df, similarity_matrix, n)
-    if recommendations.empty:
+    if recommendations is None or recommendations.empty:
         return jsonify({"error": "No recommendations found"}), 404
+        
     return jsonify(recommendations.to_dict('records'))
+
 
 @app.route('/recommend/collab', methods=['GET'])
 @cache.cached(timeout=CONFIG['cache_timeout'], query_string=True)
@@ -154,26 +160,23 @@ def hybrid_based():
         user_id = request.args.get('user_id', type=int)
         n = request.args.get('n', default=CONFIG['default_recommendations'], type=int)
 
-        if not title or user_id is None:
-            return jsonify({"error": "Both title and user_id are required"}), 400
-        
-        if user_id == 0:
-            return jsonify({"error": "Invalid user_id"}), 400
+        # Validation
+        if not title or not isinstance(title, str) or len(title.strip()) < 2:
+            return jsonify({"error": "Title must be a string with at least 2 characters"}), 400
+        if user_id is None or user_id < 1:
+            return jsonify({"error": "Valid user_id is required"}), 400
 
-        # Get recommendations from both methods
-        content_recs = get_recommendations(title, df, similarity_matrix, n)
-        collab_recs = get_collab_recommendations(user_id, collab_model, df, ratings_df, n)
+        # Get 3x more candidates to improve hybrid blending
+        content_recs = get_recommendations(title, df, similarity_matrix, n*3)
+        collab_recs = get_collab_recommendations(user_id, collab_model, df, ratings_df, n*3)
         
-        # Convert content_recs to dict list
         content_list = content_recs.to_dict('records') if not content_recs.empty else []
-        
-        # Get hybrid recommendations
         hybrid_list = merge_recommendations(content_list, collab_recs)
         
         return jsonify({
-            'content_based': content_list,
-            'collaborative': collab_recs,
-            'hybrid': hybrid_list[:n]  # Ensure only n recommendations are returned
+            'content_based': content_list[:n],  # Return original requested amount
+            'collaborative': collab_recs[:n],
+            'hybrid': hybrid_list[:n]
         })
     except Exception as e:
         logger.error(f"Error in hybrid recommendations: {str(e)}", exc_info=True)
@@ -181,6 +184,11 @@ def hybrid_based():
 
 
 def merge_recommendations(content_recs, collab_recs):
+    # Handle case where new user gets popular items without Collab_Score
+    for item in collab_recs:
+        if 'Collab_Score' not in item:
+            item['Collab_Score'] = item.get('Predicted Rating', 0) / 10
+
     if not content_recs and not collab_recs:
         return []
     
@@ -188,57 +196,69 @@ def merge_recommendations(content_recs, collab_recs):
     anime_scores = {}
     
     # Process content recommendations
-    content_recs = content_recs or []
     for item in content_recs:
         anime = item['Anime']
         anime_scores[anime] = {
             'content_score': float(item['Similarity Score']),
             'collab_score': 0,
-            'data': item
+            'genres': set(item['Genres']),
+            'content_data': item,
+            'collab_data': None
         }
     
     # Process collaborative recommendations
-    collab_recs = collab_recs or []
     for item in collab_recs:
         anime = item['Anime']
         if anime in anime_scores:
-            anime_scores[anime]['collab_score'] = item['Collab_Score']
+            # Calculate genre overlap bonus for existing items
+            content_genres = anime_scores[anime]['genres']
+            collab_genres = set(item['Genres'])
+            genre_overlap = len(content_genres & collab_genres) / len(content_genres | collab_genres)
+            genre_bonus = genre_overlap * 0.1  # 10% bonus
+            
+            anime_scores[anime].update({
+                'collab_score': item['Collab_Score'] + genre_bonus,
+                'collab_data': item
+            })
         else:
             anime_scores[anime] = {
                 'content_score': 0,
                 'collab_score': item['Collab_Score'],
-                'data': item
+                'genres': set(item['Genres']),
+                'content_data': None,
+                'collab_data': item
             }
     
-    # Calculate combined scores with weights
+    # Calculate combined scores and prepare results
     for anime, scores in anime_scores.items():
         combined = (scores['content_score'] * CONFIG['content_weight'] + 
                    scores['collab_score'] * CONFIG['collab_weight'])
         
-        # Prepare unified response format
+        method = 'hybrid' if (scores['content_score'] > 0 and scores['collab_score'] > 0) \
+                else 'content' if scores['content_score'] > 0 \
+                else 'collab'
+        
         result = {
             'Anime': anime,
             'Combined_Score': f"{combined:.3f}",
-            'Method': 'hybrid' if scores['content_score'] and scores['collab_score'] else 
-                     'content' if scores['content_score'] else 'collab'
+            'Method': method,
+            'Genres': list(scores['genres'])  # Convert set back to list
         }
         
-        # Add all available fields
-        if 'Similarity Score' in scores['data']:
+        # Merge data from both sources
+        if scores['content_data']:
             result.update({
-                'Similarity Score': scores['data']['Similarity Score'],
-                'Rating': scores['data']['Rating'],
-                'Genres': scores['data']['Genres']
+                'Similarity_Score': scores['content_data']['Similarity Score'],
+                'Content_Rating': scores['content_data']['Rating']
             })
-        if 'Predicted Rating' in scores['data']:
+        if scores['collab_data']:
             result.update({
-                'Predicted Rating': scores['data']['Predicted Rating'],
-                'Genres': scores['data']['Genres']
+                'Predicted_Rating': scores['collab_data']['Predicted Rating']
             })
         
         hybrid.append(result)
     
-    # Return top N hybrid recommendations
+    # Return top N sorted by combined score
     return sorted(hybrid, key=lambda x: float(x['Combined_Score']), reverse=True)[:CONFIG['top_n_hybrid']]
 
 @app.route('/health', methods=['GET'])

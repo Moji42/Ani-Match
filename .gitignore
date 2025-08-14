@@ -1,28 +1,39 @@
-# Ignore virtual environment
+# -------------------------
+# Environment & Dependencies
+# -------------------------
 venv/
 
-# Ignore Python cache
+# -------------------------
+# Python Cache & Bytecode
+# -------------------------
 __pycache__/
 *.py[cod]
 
-# Ignore Jupyter Notebook checkpoints (if any)
+# -------------------------
+# Jupyter Notebook
+# -------------------------
 .ipynb_checkpoints/
 
-# Ignore system files
+# -------------------------
+# System Files
+# -------------------------
 .DS_Store
 Thumbs.db
 
-# Ignore output files (for now)
+# -------------------------
+# Data Files (temporary)
+# -------------------------
 data/anime_clean.csv
-
-# Ignore dataset for now
 data/rating.csv
 data/anime.csv
 
-# Ignore storage.txt (Notes on functions)
+# -------------------------
+# Notes / Temporary Storage
+# -------------------------
 storage.txt
 
-
-# Ignore models for now (Space related training takes 2-5 mins)
-
+# -------------------------
+# Models (temporary or large files)
+# -------------------------
+backend/models/
 backend/collab_model.pkl
