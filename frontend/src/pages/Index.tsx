@@ -9,7 +9,7 @@ import heroBanner from "@/assets/hero-banner.jpg";
 
 const Index = () => {
   const { results, error, isLoading, searchRecommendations, clearResults } = useAnimeRecommendations();
-  const [searchType, setSearchType] = useState<'content' | 'collaborative' | 'hybrid'>('content');
+  const [searchType, setSearchType] = useState<'content' | 'collaborative' | 'hybrid' | 'random'>('content');
 
   const handleSearch = async (params: SearchParams) => {
     setSearchType(params.type);

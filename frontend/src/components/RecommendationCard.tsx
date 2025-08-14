@@ -13,8 +13,10 @@ interface RecommendationCardProps {
     Content_Rating?: number;
     Similarity_Score?: number;
     Predicted_Rating?: number;
+    Type?: string;
+    Members?: number;
   };
-  type: 'content' | 'collaborative' | 'hybrid';
+  type: 'content' | 'collaborative' | 'hybrid' | 'random';
 }
 
 export const RecommendationCard = ({ anime, type }: RecommendationCardProps) => {
@@ -38,6 +40,12 @@ export const RecommendationCard = ({ anime, type }: RecommendationCardProps) => 
           value: parseFloat(anime.Combined_Score || '0'),
           format: (val: number) => `${(val * 100).toFixed(1)}%`
         };
+      case 'random':
+        return anime.Members ? {
+          label: 'Members',
+          value: anime.Members,
+          format: (val: number) => val.toLocaleString()
+        } : null;
       default:
         return null;
     }

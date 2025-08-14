@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Sparkles, Users, Zap } from "lucide-react";
+import { Search, Sparkles, Users, Zap, Shuffle } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 interface SearchFormProps {
@@ -13,7 +13,7 @@ interface SearchFormProps {
 }
 
 export interface SearchParams {
-  type: 'content' | 'collaborative' | 'hybrid';
+  type: 'content' | 'collaborative' | 'hybrid' | 'random';
   title?: string;
   userId?: string;
   count: string;
@@ -40,8 +40,17 @@ export const SearchForm = ({ onSearch, isLoading }: SearchFormProps) => {
     if (formData.type === 'hybrid' && (!formData.title?.trim() || !formData.userId?.trim())) {
       return;
     }
+    // No validation needed for random
 
     onSearch(formData);
+  };
+
+  const handleRandomClick = () => {
+    const randomParams = {
+      type: 'random' as const,
+      count: formData.count
+    };
+    onSearch(randomParams);
   };
 
   const getTabIcon = (type: string) => {
@@ -49,6 +58,7 @@ export const SearchForm = ({ onSearch, isLoading }: SearchFormProps) => {
       case 'content': return <Sparkles className="w-4 h-4" />;
       case 'collaborative': return <Users className="w-4 h-4" />;
       case 'hybrid': return <Zap className="w-4 h-4" />;
+      case 'random': return <Shuffle className="w-4 h-4" />;
       default: return null;
     }
   };
@@ -61,6 +71,32 @@ export const SearchForm = ({ onSearch, isLoading }: SearchFormProps) => {
           <p className="text-muted-foreground">
             Choose your recommendation type and discover amazing anime
           </p>
+        </div>
+
+        {/* Random Button Section */}
+        <div className="text-center space-y-4 p-4 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/20">
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold flex items-center justify-center gap-2">
+              <Shuffle className="w-5 h-5" />
+              Feeling Lucky?
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Get random anime recommendations to discover something new
+            </p>
+          </div>
+          <Button 
+            onClick={handleRandomClick}
+            className="gradient-button"
+            disabled={isLoading}
+            size="lg"
+          >
+            {isLoading ? (
+              <LoadingSpinner size="sm" className="mr-2" />
+            ) : (
+              <Shuffle className="w-4 h-4 mr-2" />
+            )}
+            {isLoading ? 'Getting Random...' : 'Get Random Anime'}
+          </Button>
         </div>
 
         <Tabs 

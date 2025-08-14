@@ -34,6 +34,9 @@ export const useAnimeRecommendations = (): UseAnimeRecommendationsReturn => {
         if (title) urlParams.append('title', title);
         if (userId) urlParams.append('user_id', userId);
         break;
+      case 'random':
+        // No additional parameters needed for random
+        break;
     }
 
     return `${baseUrl}?${urlParams.toString()}`;

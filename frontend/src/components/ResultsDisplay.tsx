@@ -2,11 +2,11 @@ import { RecommendationCard } from "./RecommendationCard";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Users, Zap, TrendingUp } from "lucide-react";
+import { Sparkles, Users, Zap, TrendingUp, Shuffle } from "lucide-react";
 
 interface ResultsDisplayProps {
   results: any;
-  searchType: 'content' | 'collaborative' | 'hybrid';
+  searchType: 'content' | 'collaborative' | 'hybrid' | 'random';
 }
 
 export const ResultsDisplay = ({ results, searchType }: ResultsDisplayProps) => {
@@ -17,11 +17,12 @@ export const ResultsDisplay = ({ results, searchType }: ResultsDisplayProps) => 
       case 'content': return <Sparkles className="w-4 h-4" />;
       case 'collaborative': return <Users className="w-4 h-4" />;
       case 'hybrid': return <Zap className="w-4 h-4" />;
+      case 'random': return <Shuffle className="w-4 h-4" />;
       default: return <TrendingUp className="w-4 h-4" />;
     }
   };
 
-  const renderResults = (data: any[], type: 'content' | 'collaborative' | 'hybrid') => {
+  const renderResults = (data: any[], type: 'content' | 'collaborative' | 'hybrid' | 'random') => {
     if (!data || data.length === 0) {
       return (
         <Card className="anime-card text-center py-8">
@@ -106,7 +107,9 @@ export const ResultsDisplay = ({ results, searchType }: ResultsDisplayProps) => 
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-bold gradient-text flex items-center justify-center gap-2">
           {getResultIcon(searchType)}
-          {searchType === 'content' ? 'Content-Based' : 'Collaborative'} Recommendations
+          {searchType === 'content' ? 'Content-Based' : 
+           searchType === 'collaborative' ? 'Collaborative' : 
+           searchType === 'random' ? 'Random' : 'Collaborative'} Recommendations
         </h2>
         <div className="flex items-center justify-center gap-2">
           <p className="text-muted-foreground">
