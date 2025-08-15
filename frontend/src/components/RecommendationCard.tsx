@@ -4,117 +4,68 @@ import { Card } from "@/components/ui/card";
 interface RecommendationCardProps {
   anime: {
     Anime: string;
-    Genres: string[];
-    'Similarity Score'?: number;
+    Genres: string[] | string;
     'Predicted Rating'?: number;
-    'Combined_Score'?: string;
+    'Similarity Score'?: number;
     Rating?: number;
-    Method?: string;
-    Content_Rating?: number;
-    Similarity_Score?: number;
-    Predicted_Rating?: number;
-    Type?: string;
     Members?: number;
+    Type?: string;
   };
   type: 'content' | 'collaborative' | 'hybrid' | 'random';
 }
 
 export const RecommendationCard = ({ anime, type }: RecommendationCardProps) => {
-  const getScoreDisplay = () => {
+  const genres = Array.isArray(anime.Genres) 
+    ? anime.Genres 
+    : typeof anime.Genres === 'string' 
+      ? anime.Genres.split(',') 
+      : [];
+
+  const getScore = () => {
     switch (type) {
       case 'content':
-        return {
-          label: 'Similarity',
-          value: anime['Similarity Score'] || anime.Similarity_Score,
-          format: (val: number) => `${(val * 100).toFixed(1)}%`
-        };
+        return anime['Similarity Score'] ? `${(anime['Similarity Score'] * 100).toFixed(1)}%` : null;
       case 'collaborative':
-        return {
-          label: 'Predicted Rating',
-          value: anime['Predicted Rating'] || anime.Predicted_Rating,
-          format: (val: number) => `${val.toFixed(1)}/10`
-        };
-      case 'hybrid':
-        return {
-          label: 'Combined Score',
-          value: parseFloat(anime.Combined_Score || '0'),
-          format: (val: number) => `${(val * 100).toFixed(1)}%`
-        };
+        return anime['Predicted Rating'] ? `${anime['Predicted Rating'].toFixed(1)}/10` : null;
       case 'random':
-        return anime.Members ? {
-          label: 'Members',
-          value: anime.Members,
-          format: (val: number) => val.toLocaleString()
-        } : null;
+        return anime.Members ? `${anime.Members.toLocaleString()} members` : null;
       default:
         return null;
     }
   };
 
-  const scoreInfo = getScoreDisplay();
-  const genres = Array.isArray(anime.Genres) ? anime.Genres : [];
-
   return (
-    <Card className="anime-card group cursor-pointer">
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <h3 className="text-lg font-bold text-foreground group-hover:gradient-text transition-all duration-300">
-            {anime.Anime}
-          </h3>
-          
-          {scoreInfo && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">{scoreInfo.label}</span>
-              <span className="text-sm font-semibold text-primary">
-                {scoreInfo.format(scoreInfo.value)}
-              </span>
-            </div>
-          )}
-
-          {anime.Method && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Method</span>
-              <Badge 
-                variant="outline" 
-                className="text-xs capitalize border-primary/30 text-primary"
-              >
-                {anime.Method}
-              </Badge>
-            </div>
-          )}
-
-          {(anime.Rating || anime.Content_Rating) && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Rating</span>
-              <span className="text-sm text-secondary">
-                {(anime.Rating || anime.Content_Rating)?.toFixed(1)}/10
-              </span>
-            </div>
-          )}
+    <Card className="p-4 space-y-3 hover:shadow-md transition-shadow">
+      <h3 className="font-bold text-lg">{anime.Anime}</h3>
+      
+      {getScore() && (
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">
+            {type === 'content' ? 'Similarity' : 
+             type === 'collaborative' ? 'Predicted Rating' : 'Members'}
+          </span>
+          <span className="font-medium">{getScore()}</span>
         </div>
+      )}
 
-        <div className="space-y-2">
-          <span className="text-sm text-muted-foreground">Genres</span>
-          <div className="flex flex-wrap gap-1">
-            {genres.slice(0, 4).map((genre, index) => (
-              <Badge 
-                key={index} 
-                variant="secondary" 
-                className="text-xs bg-secondary/20 text-secondary-foreground border-secondary/30"
-              >
-                {genre}
-              </Badge>
-            ))}
-            {genres.length > 4 && (
-              <Badge 
-                variant="outline" 
-                className="text-xs border-muted-foreground/30 text-muted-foreground"
-              >
-                +{genres.length - 4}
-              </Badge>
-            )}
-          </div>
+      {anime.Rating && (
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Rating</span>
+          <span className="text-muted-foreground">{anime.Rating.toFixed(1)}/10</span>
         </div>
+      )}
+
+      <div className="flex flex-wrap gap-1">
+        {genres.slice(0, 4).map((genre, i) => (
+          <Badge key={i} variant="secondary" className="text-xs">
+            {genre.trim()}
+          </Badge>
+        ))}
+        {genres.length > 4 && (
+          <Badge variant="outline" className="text-xs">
+            +{genres.length - 4}
+          </Badge>
+        )}
       </div>
     </Card>
   );

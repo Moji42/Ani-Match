@@ -1,87 +1,68 @@
 import { useState, useCallback } from 'react';
 import { SearchParams } from '@/components/SearchForm';
 
-interface UseAnimeRecommendationsReturn {
-  results: any;
-  error: string | null;
-  isLoading: boolean;
-  searchRecommendations: (params: SearchParams) => Promise<void>;
-  clearResults: () => void;
+interface AnimeRecommendation {
+  Anime: string;
+  Genres: string[];
+  'Predicted Rating'?: number;
+  'Similarity Score'?: number;
+  'Combined_Score'?: string;
+  Rating?: number;
+  Members?: number;
+  Type?: string;
+  Method?: string;
 }
 
-const API_BASE_URL = 'http://localhost:5000'; // Update this to match your Flask backend URL
+interface ApiResponse {
+  results: AnimeRecommendation[] | {
+    content_based?: AnimeRecommendation[];
+    collaborative?: AnimeRecommendation[];
+    hybrid?: AnimeRecommendation[];
+  };
+  error?: string;
+}
 
-export const useAnimeRecommendations = (): UseAnimeRecommendationsReturn => {
-  const [results, setResults] = useState(null);
+const API_BASE_URL = 'http://localhost:5000';
+
+export const useAnimeRecommendations = () => {
+  const [results, setResults] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  const buildUrl = useCallback((params: SearchParams): string => {
-    const { type, title, userId, count } = params;
-    const baseUrl = `${API_BASE_URL}/recommend/${type}`;
-    const urlParams = new URLSearchParams();
-
-    if (count) urlParams.append('n', count);
-
-    switch (type) {
-      case 'content':
-        if (title) urlParams.append('title', title);
-        break;
-      case 'collaborative':
-        if (userId) urlParams.append('user_id', userId);
-        break;
-      case 'hybrid':
-        if (title) urlParams.append('title', title);
-        if (userId) urlParams.append('user_id', userId);
-        break;
-      case 'random':
-        // No additional parameters needed for random
-        break;
-    }
-
-    return `${baseUrl}?${urlParams.toString()}`;
-  }, []);
 
   const searchRecommendations = useCallback(async (params: SearchParams) => {
     setIsLoading(true);
     setError(null);
-    setResults(null);
 
     try {
-      const url = buildUrl(params);
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const { type, title, userId, count } = params;
+      const url = new URL(`${API_BASE_URL}/recommend/${type}`);
+      
+      if (count) url.searchParams.append('n', count);
+      if (title) url.searchParams.append('title', title);
+      if (userId) url.searchParams.append('user_id', userId);
+
+      const response = await fetch(url.toString(), {
+        headers: { 'Content-Type': 'application/json' },
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`API request failed with status ${response.status}`);
       }
 
       const data = await response.json();
-      setResults(data);
+      setResults(Array.isArray(data) ? { results: data } : { results: data });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
-      setError(errorMessage);
-      console.error('Recommendation fetch error:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      console.error('Recommendation error:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [buildUrl]);
+  }, []);
 
   const clearResults = useCallback(() => {
     setResults(null);
     setError(null);
   }, []);
 
-  return {
-    results,
-    error,
-    isLoading,
-    searchRecommendations,
-    clearResults,
-  };
+  return { results, error, isLoading, searchRecommendations, clearResults };
 };

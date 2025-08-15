@@ -136,6 +136,7 @@ def content_based():
 
 
 @app.route('/recommend/collab', methods=['GET'])
+@app.route('/recommend/collaborative', methods=['GET'])
 @cache.cached(timeout=CONFIG['cache_timeout'], query_string=True)
 def collab_based():
     user_id = request.args.get('user_id', type=int)
