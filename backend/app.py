@@ -162,26 +162,52 @@ def hybrid_based():
         n = request.args.get('n', default=CONFIG['default_recommendations'], type=int)
 
         # Validation
-        if not title or not isinstance(title, str) or len(title.strip()) < 2:
-            return jsonify({"error": "Title must be a string with at least 2 characters"}), 400
-        if user_id is None or user_id < 1:
+        if not title or len(title.strip()) < 2:
+            return jsonify({"error": "Title must be at least 2 characters"}), 400
+        if not user_id or user_id < 1:
             return jsonify({"error": "Valid user_id is required"}), 400
 
-        # Get 3x more candidates to improve hybrid blending
-        content_recs = get_recommendations(title, df, similarity_matrix, n*3)
-        collab_recs = get_collab_recommendations(user_id, collab_model, df, ratings_df, n*3)
-        
-        content_list = content_recs.to_dict('records') if not content_recs.empty else []
-        hybrid_list = merge_recommendations(content_list, collab_recs)
-        
+        # 1️⃣ Get content-based recommendations (overfetch to allow hybrid merging)
+        content_recs_df = get_recommendations(title, df, similarity_matrix, n * 3)
+        content_list = content_recs_df.to_dict('records') if not content_recs_df.empty else []
+
+        # 2️⃣ Get collaborative recommendations (overfetch)
+        collab_list = get_collab_recommendations(user_id, collab_model, df, ratings_df, n * 3)
+
+        # 3️⃣ Merge into hybrid using the duplicate-free, hybrid-first logic
+        hybrid_results = merge_recommendations(content_list, collab_list)
+
+        # 4️⃣ Slice top-N dynamically based on requested n
+        hybrid_top_n = hybrid_results[:n]
+        content_top_n = content_list[:n]
+        collab_top_n = collab_list[:n]
+
         return jsonify({
-            'content_based': content_list[:n],  # Return original requested amount
-            'collaborative': collab_recs[:n],
-            'hybrid': hybrid_list[:n]
+            'content_based': content_top_n,
+            'collaborative': collab_top_n,
+            'hybrid': hybrid_top_n
         })
+
     except Exception as e:
         logger.error(f"Error in hybrid recommendations: {str(e)}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
+
+
+def merge_top_bottom(arr1, arr2):
+
+    mid1 = len(arr1) // 2  # midpoint for first array
+    mid2 = len(arr2) // 2  # midpoint for second array
+
+    merged_arr = arr1[:mid1] + arr2[mid2:]
+    return merged_arr
+
+
+def calculate_genre_similarity(genres1, genres2):
+    set1 = set(genres1) if isinstance(genres1, list) else set(genres1.split(','))
+    set2 = set(genres2) if isinstance(genres2, list) else set(genres2.split(','))
+    intersection = len(set1 & set2)
+    union = len(set1 | set2)
+    return intersection / union if union > 0 else 0
 
 @app.route('/recommend/random', methods=['GET'])
 def random_recommendations():
@@ -208,82 +234,134 @@ def random_recommendations():
     return response
 
 def merge_recommendations(content_recs, collab_recs):
-    # Handle case where new user gets popular items without Collab_Score
-    for item in collab_recs:
-        if 'Collab_Score' not in item:
-            item['Collab_Score'] = item.get('Predicted Rating', 0) / 10
-
+    """
+    Merge content-based and collaborative recommendations into a hybrid list.
+    Ensures:
+    - Hybrid items prioritized
+    - No duplicates
+    - At least 2 collab-only items
+    """
     if not content_recs and not collab_recs:
         return []
-    
+
     hybrid = []
     anime_scores = {}
-    
-    # Process content recommendations
+
+    # Step 1: process content recommendations
     for item in content_recs:
         anime = item['Anime']
         anime_scores[anime] = {
-            'content_score': float(item['Similarity Score']),
+            'content_score': float(item.get('Similarity Score', 0)),
             'collab_score': 0,
             'genres': set(item['Genres']),
             'content_data': item,
             'collab_data': None
         }
-    
-    # Process collaborative recommendations
+
+    # Step 2: process collaborative recommendations
     for item in collab_recs:
         anime = item['Anime']
+        collab_score = float(item.get('Collab_Score', item.get('Predicted Rating', 0)/10))
         if anime in anime_scores:
-            # Calculate genre overlap bonus for existing items
             content_genres = anime_scores[anime]['genres']
             collab_genres = set(item['Genres'])
-            genre_overlap = len(content_genres & collab_genres) / len(content_genres | collab_genres)
-            genre_bonus = genre_overlap * 0.1  # 10% bonus
-            
-            anime_scores[anime].update({
-                'collab_score': item['Collab_Score'] + genre_bonus,
-                'collab_data': item
-            })
+            genre_bonus = len(content_genres & collab_genres) / len(content_genres | collab_genres) * 0.1
+            anime_scores[anime]['collab_score'] = collab_score + genre_bonus
+            anime_scores[anime]['collab_data'] = item
         else:
             anime_scores[anime] = {
                 'content_score': 0,
-                'collab_score': item['Collab_Score'],
+                'collab_score': collab_score,
                 'genres': set(item['Genres']),
                 'content_data': None,
                 'collab_data': item
             }
-    
-    # Calculate combined scores and prepare results
+
+    # Step 3: percentile normalization
+    content_values = [s['content_score'] for s in anime_scores.values()]
+    collab_values = [s['collab_score'] for s in anime_scores.values()]
+
+    def percentile_rank(score, all_scores):
+        if not all_scores:
+            return 0
+        sorted_scores = sorted(all_scores)
+        index = sorted_scores.index(score)
+        return index / (len(sorted_scores) - 1) if len(sorted_scores) > 1 else 1.0
+
+    # Step 4: compute combined scores
     for anime, scores in anime_scores.items():
-        combined = (scores['content_score'] * CONFIG['content_weight'] + 
-                   scores['collab_score'] * CONFIG['collab_weight'])
-        
-        method = 'hybrid' if (scores['content_score'] > 0 and scores['collab_score'] > 0) \
-                else 'content' if scores['content_score'] > 0 \
-                else 'collab'
-        
+        content_pct = percentile_rank(scores['content_score'], content_values) if scores['content_score'] > 0 else 0
+        collab_pct = percentile_rank(scores['collab_score'], collab_values) if scores['collab_score'] > 0 else 0
+
+        combined = content_pct * CONFIG['content_weight'] + collab_pct * CONFIG['collab_weight']
+
+        method = 'hybrid' if content_pct > 0 and collab_pct > 0 \
+                 else 'content' if content_pct > 0 \
+                 else 'collab'
+
         result = {
             'Anime': anime,
-            'Combined_Score': f"{combined:.3f}",
+            'Combined_Score': round(combined, 3),
             'Method': method,
-            'Genres': list(scores['genres'])  # Convert set back to list
+            'Genres': list(scores['genres'])
         }
-        
-        # Merge data from both sources
+
         if scores['content_data']:
             result.update({
-                'Similarity_Score': scores['content_data']['Similarity Score'],
-                'Content_Rating': scores['content_data']['Rating']
+                'Similarity_Score': scores['content_data'].get('Similarity Score'),
+                'Content_Rating': scores['content_data'].get('Rating')
             })
         if scores['collab_data']:
             result.update({
-                'Predicted_Rating': scores['collab_data']['Predicted Rating']
+                'Predicted_Rating': scores['collab_data'].get('Predicted Rating')
             })
-        
+
         hybrid.append(result)
-    
-    # Return top N sorted by combined score
-    return sorted(hybrid, key=lambda x: float(x['Combined_Score']), reverse=True)[:CONFIG['top_n_hybrid']]
+
+    # Step 5: sort by combined score
+    hybrid_sorted = sorted(hybrid, key=lambda x: x['Combined_Score'], reverse=True)
+
+    # Step 6: enforce at least 2 collab-only items
+    collab_only = [h for h in hybrid_sorted if h['Method'] == 'collab']
+    hybrid_only = [h for h in hybrid_sorted if h['Method'] == 'hybrid']
+    content_only = [h for h in hybrid_sorted if h['Method'] == 'content']
+
+    final_hybrid = []
+    seen = set()
+
+    # 1 Add hybrid items first
+    for item in hybrid_only:
+        if item['Anime'] not in seen:
+            final_hybrid.append(item)
+            seen.add(item['Anime'])
+
+    # 2 Add content-only items
+    for item in content_only:
+        if item['Anime'] not in seen:
+            final_hybrid.append(item)
+            seen.add(item['Anime'])
+
+    # 3 Add collab-only items
+    for item in collab_only:
+        if item['Anime'] not in seen:
+            final_hybrid.append(item)
+            seen.add(item['Anime'])
+
+    # Step 7: enforce top-N and guarantee at least 2 collab-only items
+    n = CONFIG['top_n_hybrid']
+    requested_top_n = n
+    top_n_hybrid = final_hybrid[:requested_top_n]
+
+    current_collab_count = len([h for h in top_n_hybrid if h['Method'] == 'collab'])
+    needed = max(0, 2 - current_collab_count)
+
+    # Replace last items if needed with collab-only
+    for i in range(needed):
+        if i < len(collab_only):
+            top_n_hybrid[-(i+1)] = collab_only[i]
+
+    return top_n_hybrid
+
 
 @app.route('/health', methods=['GET'])
 def health_check():
