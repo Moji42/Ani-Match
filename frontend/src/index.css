@@ -2,103 +2,118 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Anime-inspired design system with vibrant colors and gradients */
+/* Green and grey theme design system with nature-inspired styling */
 
 @layer base {
   :root {
-    /* Green and grey color palette */
-    --background: 210 15% 8%;
-    --foreground: 210 10% 95%;
+    /* Base colors - green and grey theme */
+    --background: 220 15% 8%;
+    --foreground: 220 30% 95%;
 
-    --card: 210 20% 12%;
-    --card-foreground: 210 10% 92%;
+    /* Card styling */
+    --card: 220 20% 12%;
+    --card-foreground: 220 25% 92%;
 
-    --popover: 210 25% 15%;
-    --popover-foreground: 210 10% 92%;
+    /* Popover styling */
+    --popover: 220 20% 12%;
+    --popover-foreground: 220 25% 92%;
 
-    --primary: 142 85% 45%;
-    --primary-foreground: 210 10% 95%;
-    --primary-glow: 142 90% 60%;
+    /* Primary - nature green theme */
+    --primary: 142 70% 50%;
+    --primary-foreground: 220 30% 8%;
+    --primary-glow: 142 85% 65%;
 
-    --secondary: 210 15% 25%;
-    --secondary-foreground: 210 10% 95%;
-    --secondary-glow: 210 20% 40%;
+    /* Secondary - cool grey */
+    --secondary: 220 30% 18%;
+    --secondary-foreground: 220 25% 90%;
 
-    --muted: 210 15% 18%;
-    --muted-foreground: 210 10% 70%;
+    /* Muted tones */
+    --muted: 220 20% 15%;
+    --muted-foreground: 220 15% 65%;
 
-    --accent: 158 75% 50%;
-    --accent-foreground: 210 10% 95%;
-    --accent-glow: 158 85% 65%;
+    /* Accent - bright emerald */
+    --accent: 160 100% 45%;
+    --accent-foreground: 220 30% 10%;
 
-    --destructive: 0 85% 60%;
-    --destructive-foreground: 300 20% 95%;
+    /* Destructive - warning red */
+    --destructive: 0 70% 60%;
+    --destructive-foreground: 220 30% 98%;
 
-    --border: 245 20% 18%;
-    --input: 245 25% 12%;
-    --ring: 260 85% 55%;
+    /* Borders and inputs */
+    --border: 220 25% 20%;
+    --input: 220 25% 16%;
+    --ring: 142 70% 50%;
+
+    /* Green-themed gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(142 70% 50%), hsl(160 100% 45%));
+    --gradient-secondary: linear-gradient(135deg, hsl(220 30% 18%), hsl(220 20% 12%));
+    --gradient-hero: linear-gradient(135deg, hsl(142 70% 50% / 0.9), hsl(160 100% 45% / 0.7));
+    --gradient-card: linear-gradient(145deg, hsl(220 20% 12%), hsl(220 25% 16%));
+
+    /* Shadows with green glow effects */
+    --shadow-elegant: 0 10px 30px -10px hsl(142 70% 50% / 0.3);
+    --shadow-glow: 0 0 20px hsl(142 85% 65% / 0.4);
+    --shadow-card: 0 4px 20px hsl(220 15% 8% / 0.4);
+
+    /* Animation variables */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
     --radius: 0.75rem;
 
-    /* Anime-inspired gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
-    --gradient-secondary: linear-gradient(135deg, hsl(var(--secondary)), hsl(var(--secondary-glow)));
-    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent-glow)));
-    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)), hsl(var(--accent)));
-    --gradient-card: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(245 25% 10%) 100%);
+    --sidebar-background: 0 0% 98%;
 
-    /* Glow effects */
-    --glow-primary: 0 0 20px hsl(var(--primary-glow) / 0.3);
-    --glow-secondary: 0 0 20px hsl(var(--secondary-glow) / 0.3);
-    --glow-accent: 0 0 20px hsl(var(--accent-glow) / 0.3);
+    --sidebar-foreground: 240 5.3% 26.1%;
 
-    /* Shadows */
-    --shadow-card: 0 8px 32px hsl(240 15% 4% / 0.4);
-    --shadow-glow: 0 0 40px hsl(var(--primary) / 0.2);
+    --sidebar-primary: 240 5.9% 10%;
 
-    /* Animation */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
-}
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
 
-@layer components {
-  .anime-card {
-    @apply bg-gradient-to-br from-card to-card/80 backdrop-blur-sm border border-border/50;
-    @apply rounded-xl p-6 transition-all duration-300;
-    @apply hover:shadow-[var(--shadow-card)] hover:border-primary/30 hover:scale-[1.02];
-    box-shadow: var(--shadow-card);
-  }
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
 
-  .anime-card:hover {
-    box-shadow: var(--shadow-card), var(--glow-primary);
-  }
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
 
-  .gradient-text {
-    @apply bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent;
-  }
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
 
-  .gradient-button {
-    @apply bg-gradient-to-r from-primary to-secondary text-primary-foreground;
-    @apply hover:from-primary-glow hover:to-secondary-glow transition-all duration-300;
-    @apply hover:shadow-[var(--glow-primary)] hover:scale-105;
-  }
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
 
-  .gradient-button-accent {
-    @apply bg-gradient-to-r from-accent to-primary text-accent-foreground;
-    @apply hover:from-accent-glow hover:to-primary-glow transition-all duration-300;
-    @apply hover:shadow-[var(--glow-accent)] hover:scale-105;
-  }
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
 
-  .anime-input {
-    @apply bg-input/50 border border-border/50 backdrop-blur-sm;
-    @apply focus:border-primary/50 focus:ring-1 focus:ring-primary/20;
-    @apply transition-all duration-300;
-  }
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
 
-  .anime-input:focus {
-    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.2), var(--glow-primary);
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 

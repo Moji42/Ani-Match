@@ -4,24 +4,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Sparkles, Users, Zap, Shuffle } from "lucide-react";
+import { Search, Sparkles, Users, Zap } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-
 
 interface SearchFormProps {
   onSearch: (params: SearchParams) => void;
   isLoading: boolean;
-  error?: string | null;
 }
 
 export interface SearchParams {
-  type: 'content' | 'collaborative' | 'hybrid' | 'random';
+  type: 'content' | 'collaborative' | 'hybrid';
   title?: string;
   userId?: string;
   count: string;
 }
 
-export const SearchForm = ({ onSearch, isLoading, error }: SearchFormProps) => {
+export const SearchForm = ({ onSearch, isLoading }: SearchFormProps) => {
   const [formData, setFormData] = useState<SearchParams>({
     type: 'content',
     title: '',
@@ -32,134 +30,150 @@ export const SearchForm = ({ onSearch, isLoading, error }: SearchFormProps) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (formData.type === 'collaborative' && !formData.userId) {
+    // Validation
+    if (formData.type === 'content' && !formData.title?.trim()) {
+      return;
+    }
+    if (formData.type === 'collaborative' && !formData.userId?.trim()) {
+      return;
+    }
+    if (formData.type === 'hybrid' && (!formData.title?.trim() || !formData.userId?.trim())) {
       return;
     }
 
     onSearch(formData);
   };
 
-  const handleRandomClick = () => {
-    onSearch({ type: 'random', count: formData.count });
+  const getTabIcon = (type: string) => {
+    switch (type) {
+      case 'content': return <Sparkles className="w-4 h-4" />;
+      case 'collaborative': return <Users className="w-4 h-4" />;
+      case 'hybrid': return <Zap className="w-4 h-4" />;
+      default: return null;
+    }
   };
 
   return (
-    <Card className="p-6 space-y-6">
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold">Find Your Next Anime</h2>
-        <p className="text-muted-foreground">
-          Choose your recommendation type and discover amazing anime
-        </p>
-      </div>
+    <Card className="anime-card">
+      <div className="space-y-6">
+        <div className="text-center space-y-2">
+          <h2 className="text-2xl font-bold gradient-text">Find Your Next Anime</h2>
+          <p className="text-muted-foreground">
+            Choose your recommendation type and discover amazing anime
+          </p>
+        </div>
 
-      <div className="text-center space-y-4 p-4 rounded-lg bg-secondary/10">
-        <Button 
-          onClick={handleRandomClick}
-          disabled={isLoading}
-          size="lg"
+        <Tabs 
+          value={formData.type} 
+          onValueChange={(value) => setFormData(prev => ({ 
+            ...prev, 
+            type: value as SearchParams['type'] 
+          }))}
         >
-          {isLoading ? <LoadingSpinner className="mr-2" /> : <Shuffle className="mr-2" />}
-          Get Random Anime
-        </Button>
-      </div>
+          <TabsList className="grid w-full grid-cols-3 bg-muted/20">
+            <TabsTrigger value="content" className="flex items-center gap-2">
+              {getTabIcon('content')}
+              Content
+            </TabsTrigger>
+            <TabsTrigger value="collaborative" className="flex items-center gap-2">
+              {getTabIcon('collaborative')}
+              Collaborative
+            </TabsTrigger>
+            <TabsTrigger value="hybrid" className="flex items-center gap-2">
+              {getTabIcon('hybrid')}
+              Hybrid
+            </TabsTrigger>
+          </TabsList>
 
-      <Tabs 
-        value={formData.type} 
-        onValueChange={(type) => setFormData(prev => ({ ...prev, type: type as SearchParams['type'] }))}
-      >
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="content">
-            <Sparkles className="w-4 h-4 mr-2" />
-            Content
-          </TabsTrigger>
-          <TabsTrigger value="collaborative">
-            <Users className="w-4 h-4 mr-2" />
-            Collaborative
-          </TabsTrigger>
-          <TabsTrigger value="hybrid">
-            <Zap className="w-4 h-4 mr-2" />
-            Hybrid
-          </TabsTrigger>
-        </TabsList>
-
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <TabsContent value="content" className="space-y-4">
-            <div className="space-y-2">
-              <Label>Anime Title</Label>
-              <Input
-                placeholder="e.g., Naruto"
-                value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                required
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="collaborative" className="space-y-4">
-            <div className="space-y-2">
-              <Label>User ID</Label>
-              <Input
-                type="number"
-                min="1"
-                placeholder="Enter user ID (1, 2, or 3)"
-                value={formData.userId}
-                onChange={(e) => setFormData(prev => ({ ...prev, userId: e.target.value }))}
-                required
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="hybrid" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <TabsContent value="content" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label>Anime Title</Label>
+                <Label htmlFor="title">Anime Title</Label>
                 <Input
-                  placeholder="e.g., Naruto"
+                  id="title"
+                  placeholder="e.g., Naruto, One Piece, Attack on Titan..."
                   value={formData.title}
                   onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  className="anime-input"
                   required
                 />
               </div>
+            </TabsContent>
+
+            <TabsContent value="collaborative" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label>User ID</Label>
+                <Label htmlFor="userId">User ID</Label>
                 <Input
+                  id="userId"
                   type="number"
-                  min="1"
-                  placeholder="Enter user ID"
+                  placeholder="Enter your user ID..."
                   value={formData.userId}
                   onChange={(e) => setFormData(prev => ({ ...prev, userId: e.target.value }))}
+                  className="anime-input"
                   required
                 />
               </div>
-            </div>
-          </TabsContent>
+            </TabsContent>
 
-          <div className="grid gap-4 grid-cols-2">
-            <div className="space-y-2">
-              <Label>Number of Recommendations</Label>
-              <Input
-                type="number"
-                min="1"
-                max="20"
-                value={formData.count}
-                onChange={(e) => setFormData(prev => ({ ...prev, count: e.target.value }))}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? <LoadingSpinner className="mr-2" /> : <Search className="mr-2" />}
-                Get Recommendations
-              </Button>
-            </div>
-          </div>
-        </form>
-      </Tabs>
+            <TabsContent value="hybrid" className="space-y-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="hybrid-title">Anime Title</Label>
+                  <Input
+                    id="hybrid-title"
+                    placeholder="e.g., Naruto..."
+                    value={formData.title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    className="anime-input"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="hybrid-userId">User ID</Label>
+                  <Input
+                    id="hybrid-userId"
+                    type="number"
+                    placeholder="Your user ID..."
+                    value={formData.userId}
+                    onChange={(e) => setFormData(prev => ({ ...prev, userId: e.target.value }))}
+                    className="anime-input"
+                    required
+                  />
+                </div>
+              </div>
+            </TabsContent>
 
-      {error && (
-        <div className="text-red-500 text-sm mt-2">
-          {error}
-        </div>
-      )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="count">Number of Recommendations</Label>
+                <Input
+                  id="count"
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={formData.count}
+                  onChange={(e) => setFormData(prev => ({ ...prev, count: e.target.value }))}
+                  className="anime-input"
+                />
+              </div>
+              <div className="flex items-end">
+                <Button 
+                  type="submit" 
+                  className="w-full gradient-button" 
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <LoadingSpinner size="sm" className="mr-2" />
+                  ) : (
+                    <Search className="w-4 h-4 mr-2" />
+                  )}
+                  {isLoading ? 'Searching...' : 'Get Recommendations'}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </Tabs>
+      </div>
     </Card>
   );
 };

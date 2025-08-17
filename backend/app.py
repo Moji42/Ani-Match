@@ -11,7 +11,13 @@ from flask_caching import Cache
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, resources={
+    r"/recommend/*": {
+        "origins": ["http://localhost:8080", "http://127.0.0.1:8080"],
+        "methods": ["GET"],
+        "allow_headers": ["*"]
+    }
+})
 
 
 # Configure logging
