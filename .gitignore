@@ -1,0 +1,44 @@
+# -------------------------
+# Environment & Dependencies
+# -------------------------
+venv/
+
+# -------------------------
+# Python Cache & Bytecode
+# -------------------------
+__pycache__/
+*.py[cod]
+
+# -------------------------
+# Jupyter Notebook
+# -------------------------
+.ipynb_checkpoints/
+
+# -------------------------
+# System Files
+# -------------------------
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# Data Files (temporary)
+# -------------------------
+data/anime_clean.csv
+data/rating.csv
+data/anime.csv
+
+# -------------------------
+# Notes / Temporary Storage
+# -------------------------
+storage.txt
+
+# -------------------------
+# Models (temporary or large files)
+# -------------------------
+backend/models/
+backend/collab_model.pkl
+
+# -------------------------
+# Supabase folder
+# -------------------------
+frontend/supabase/
