@@ -90,26 +90,33 @@ def are_same_series(title1: str, title2: str, threshold: float = SERIES_SIMILARI
     contains = (name1 in name2) or (name2 in name1)
     return sim >= threshold or contains
 
-# Optional: allow filtering by type
-def filter_by_type(df_subset, anime_type):
-    """Filter anime DataFrame by type(s)"""
-    if not anime_type or anime_type.lower() == 'all':
-        return df_subset
+# Allows filtering by type
+def filter_by_type(df_subset: pd.DataFrame, anime_type: Union[str, list, None]) -> pd.DataFrame:
+    """Filter anime DataFrame by type(s). Works with single string, list, or None."""
     
-    # Handle multiple types (comma-separated)
+    if not anime_type or (isinstance(anime_type, str) and anime_type.lower() == 'all'):
+        return df_subset
+
+    # Ensure we have a list of types to filter
     if isinstance(anime_type, str):
         types = [t.strip().lower() for t in anime_type.split(',')]
+    elif isinstance(anime_type, list):
+        types = [str(t).lower() for t in anime_type]
     else:
         types = [str(anime_type).lower()]
-    
-    # Create a boolean mask for filtering
+
+    # Check if 'type' column exists
     if 'type' not in df_subset.columns:
         logger.warning("No 'type' column found in DataFrame, cannot filter by type")
         return df_subset
-    
-    mask = df_subset['type'].str.lower().isin(types)
-    filtered_df = df_subset[mask]
-    
+
+    # Normalize type column to lowercase strings
+    df_subset['type'] = df_subset['type'].astype(str).str.lower()
+
+    # Keep rows where the type matches any of the desired types
+    mask = df_subset['type'].isin(types)
+    filtered_df = df_subset[mask].copy()
+
     logger.info(f"Filtered from {len(df_subset)} to {len(filtered_df)} anime for types: {types}")
     return filtered_df
 
@@ -119,6 +126,7 @@ def filter_by_type(df_subset, anime_type):
 def load_and_preprocess_data(filepath: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Load data, make genre multi-hot, normalize rating + members, build weighted feature matrix.
+    Ensures 'type' column exists and is lowercase for consistent filtering.
     """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Dataset not found: {filepath}")
@@ -129,9 +137,14 @@ def load_and_preprocess_data(filepath: str) -> Tuple[pd.DataFrame, pd.DataFrame]
         .pipe(lambda d: d[~d['genre'].isna()].copy())
     )
 
-    # convert genre column (list stored as string) to list
+    # Ensure 'type' column exists and is lowercase
+    if 'type' not in df.columns:
+        df['type'] = 'unknown'
+    df['type'] = df['type'].astype(str).str.lower()
+
+    # Convert genre column (list stored as string) to list
     df['genre'] = df['genre'].apply(
-        lambda x: ast.literal_eval(x) if isinstance(x, str) else x
+        lambda x: ast.literal_eval(x) if isinstance(x, str) else []
     )
 
     mlb = MultiLabelBinarizer()
@@ -150,13 +163,13 @@ def load_and_preprocess_data(filepath: str) -> Tuple[pd.DataFrame, pd.DataFrame]
         df['members_normalized'] * POPULARITY_WEIGHT
     ], axis=1).fillna(0)
 
-    logger.info(f"Loaded & preprocessed {len(df)} anime.")
+    logger.info(f"Loaded & preprocessed {len(df)} anime. 'type' column ensured lowercase and present.")
     return df, final_features
+
 
 def build_similarity_matrix(features: pd.DataFrame):
     return cosine_similarity(features)
 
-# backend/content_based.py
 def get_recommendations(
     title: str,
     df: pd.DataFrame,
@@ -164,9 +177,7 @@ def get_recommendations(
     n: int = 5,
     anime_type: str = None
 ) -> Union[pd.DataFrame, None]:
-    """
-    Content-based top-N recommendations with diversity and series filtering.
-    """
+
     if not title or len(title.strip()) < 2:
         logger.warning("Invalid title input")
         return None
@@ -185,9 +196,18 @@ def get_recommendations(
             return None
         idx = df[df['name'].apply(clean_title) == matches[0]].index[0]
 
-    # Get similarity list excluding itself
-    sim_scores = list(enumerate(similarity_matrix[idx]))
-    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)[1:(n*3)+1]
+    # Apply type filtering first to the candidate set
+    candidate_indices = df.index.tolist()
+    if anime_type and anime_type.lower() != 'all':
+        filtered_df = filter_by_type(df, anime_type)
+        candidate_indices = filtered_df.index.tolist()
+        if idx not in candidate_indices:
+            # Always include the target anime itself
+            candidate_indices.append(idx)
+
+    # Get similarity scores only among candidates
+    sim_scores = [(i, similarity_matrix[idx][i]) for i in candidate_indices if i != idx]
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)[:n*3]
 
     # Filter out same series
     sim_scores_filtered = [
@@ -198,33 +218,30 @@ def get_recommendations(
     # Diverse genres
     selected = []
     seen_genres = set()
-    for (i, score) in sim_scores_filtered:
-        if len(selected) >= n: break
+    for i, score in sim_scores_filtered:
+        if len(selected) >= n:
+            break
         curr_gen = set(df.iloc[i]['genre'])
-        if len(selected) < n//2 or not curr_gen.issubset(seen_genres):
+        if len(selected) < n // 2 or not curr_gen.issubset(seen_genres):
             selected.append((i, score))
             seen_genres.update(curr_gen)
 
     # Fallback if not enough
     if len(selected) < n:
-        for (i, score) in sim_scores_filtered:
-            if len(selected) >= n: break
+        for i, score in sim_scores_filtered:
+            if len(selected) >= n:
+                break
             if i not in [s[0] for s in selected]:
-                selected.append((i,score))
+                selected.append((i, score))
 
     recommendations = pd.DataFrame({
-        'Anime': df.iloc[[i for (i, s) in selected]]['name'].values,
-        'Similarity Score': [round(s, 4) for (_, s) in selected],
-        'Rating': df.iloc[[i for (i, s) in selected]]['rating'].values,
-        'Genres': df.iloc[[i for (i, s) in selected]]['genre'].tolist(),
-        'Content_Score': [s for (_, s) in selected],
-        'Type': df.iloc[[i for (i, s) in selected]]['type'].values  # Add type column
+        'Anime': df.iloc[[i for i, _ in selected]]['name'].values,
+        'Similarity Score': [round(s, 4) for _, s in selected],
+        'Rating': df.iloc[[i for i, _ in selected]]['rating'].values,
+        'Genres': df.iloc[[i for i, _ in selected]]['genre'].tolist(),
+        'Content_Score': [s for _, s in selected],
+        'Type': df.iloc[[i for i, _ in selected]]['type'].values
     })
-
-    # Apply type filtering after creating recommendations
-    if anime_type and anime_type.lower() != 'all':
-        recommendations = filter_by_type(recommendations, anime_type)
-        logger.info(f"After type filtering: {len(recommendations)} recommendations")
 
     return recommendations
 
