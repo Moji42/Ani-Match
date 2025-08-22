@@ -13,13 +13,14 @@ interface AnimeCardProps {
     Rating?: number;
     Genres: string[] | string;
     Type?: string;
-    Method?: string;
+    Method?: string; 
     Content_Rating?: number;
     Combined_Score?: number;
   };
   onLike?: () => void;
   onDislike?: () => void;
   onDetails?: () => void;
+  user?: any;
 }
 
 export const AnimeCard = ({ anime, onLike, onDislike, onDetails }: AnimeCardProps) => {
