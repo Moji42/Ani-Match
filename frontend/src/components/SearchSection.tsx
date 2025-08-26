@@ -1,4 +1,3 @@
-// Frontend/src/components/SearchSection.tsx
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +18,6 @@ interface AnimeType {
   label: string;
 }
 
-// Default anime types - will be replaced by API data when available
 const defaultAnimeTypes: AnimeType[] = [
   { value: "all", label: "All Types" },
   { value: "tv", label: "TV Series" },
@@ -42,46 +40,76 @@ export const SearchSection = ({ onSearch, onRandomSearch, loading }: SearchSecti
 
   const baseUrl = "http://127.0.0.1:5000";
 
-  // Fetch available anime types from the API
-  useEffect(() => {
-    const fetchAvailableTypes = async () => {
-      setTypesLoading(true);
-      try {
-        const response = await fetch(`${baseUrl}/api/types`);
-        if (response.ok) {
-          const data = await response.json();
-          const formattedTypes: AnimeType[] = [
-            { value: "all", label: "All Types" },
-            ...data.types.map((type: string) => ({
-              value: type.toLowerCase(),
-              label: type
-            }))
-          ];
-          setAvailableTypes(formattedTypes);
-        } else {
-          console.warn("Failed to fetch anime types, using defaults");
-        }
-      } catch (error) {
-        console.warn("Error fetching anime types:", error);
-        // Keep default types if API fails
-      } finally {
-        setTypesLoading(false);
-      }
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
     };
+  };
 
-    fetchAvailableTypes();
-  }, [baseUrl]);
+  const fetchAvailableTypes = async () => {
+    setTypesLoading(true);
+    try {
+      const response = await fetch(`${baseUrl}/api/types`, {
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const formattedTypes: AnimeType[] = [
+          { value: "all", label: "All Types" },
+          ...data.types.map((type: string) => ({
+            value: type.toLowerCase(),
+            label: type
+          }))
+        ];
+        setAvailableTypes(formattedTypes);
+      } else {
+        console.warn("Failed to fetch anime types, using defaults");
+      }
+    } catch (error) {
+      console.warn("Error fetching anime types:", error);
+    } finally {
+      setTypesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      fetchAvailableTypes();
+    }
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() && method !== "collab") return;
     
-    // Pass the type parameter along with other parameters
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to get recommendations",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     onSearch(title, userId, method, count, selectedType);
   };
 
   const handleRandomSearch = () => {
-    // Pass the type parameter to random search
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to get recommendations",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     onRandomSearch(count, selectedType);
   };
 
@@ -97,7 +125,6 @@ export const SearchSection = ({ onSearch, onRandomSearch, loading }: SearchSecti
   const handleTypeChange = (value: string) => {
     setSelectedType(value);
     
-    // Show toast for type selection
     const selectedTypeLabel = availableTypes.find(t => t.value === value)?.label || value;
     if (value !== "all") {
       toast({
@@ -143,7 +170,6 @@ export const SearchSection = ({ onSearch, onRandomSearch, loading }: SearchSecti
             </TabsTrigger>
           </TabsList>
           
-          {/* Method description */}
           <div className="mt-4 p-4 bg-secondary/20 rounded-lg border border-secondary/30">
             <p className="text-sm text-muted-foreground">
               {getMethodDescription(method)}
@@ -268,7 +294,6 @@ export const SearchSection = ({ onSearch, onRandomSearch, loading }: SearchSecti
           </Button>
         </div>
 
-        {/* Filter Summary */}
         {selectedType !== "all" && (
           <div className="bg-accent/10 border border-accent/30 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">

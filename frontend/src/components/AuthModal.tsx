@@ -5,26 +5,159 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Mail, Lock } from "lucide-react";
+import { User, Mail, Lock, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+interface AuthResponse {
+  message: string;
+  user_id: string;
+  email: string;
+  access_token: string;
+}
 
 export const AuthModal = () => {
   const [open, setOpen] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [signupData, setSignupData] = useState({ email: "", password: "", confirmPassword: "" });
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const baseUrl = "http://127.0.0.1:5000";
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Login attempt:", loginData);
-    // Add login logic here later
-    setOpen(false);
+    setLoading(true);
+    
+    try {
+        const response = await fetch(`${baseUrl}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(loginData),
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+            localStorage.setItem('access_token', data.access_token);
+            localStorage.setItem('user_id', data.user_id);
+            localStorage.setItem('user_email', data.email);
+            
+            toast({
+                title: "Login successful!",
+                description: `Welcome back, ${data.email}!`,
+            });
+            setOpen(false);
+        } else {
+            toast({
+                title: "Login failed",
+                description: data.error || "Invalid credentials",
+                variant: "destructive",
+            });
+        }
+    } catch (error) {
+        toast({
+            title: "Login error",
+            description: "Could not connect to server",
+            variant: "destructive",
+        });
+    } finally {
+        setLoading(false);
+    }
+};
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (signupData.password !== signupData.confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please make sure your passwords match",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const response = await fetch(`${baseUrl}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: signupData.email,
+          password: signupData.password,
+        }),
+      });
+
+      if (response.ok) {
+        const data: AuthResponse = await response.json();
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('user_id', data.user_id);
+        localStorage.setItem('user_email', data.email);
+        
+        toast({
+          title: "Account created!",
+          description: `Welcome, ${data.email}!`,
+        });
+        setOpen(false);
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Signup failed",
+          description: errorData.error || "Could not create account",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Signup error",
+        description: "Could not connect to server",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSignup = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Signup attempt:", signupData);
-    // Add signup logic here later
-    setOpen(false);
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('user_email');
+    toast({
+      title: "Logged out",
+      description: "You have been logged out successfully",
+    });
   };
+
+  const isLoggedIn = () => {
+    return !!localStorage.getItem('access_token');
+  };
+
+  const getUserEmail = () => {
+    return localStorage.getItem('user_email');
+  };
+
+  if (isLoggedIn()) {
+    return (
+      <div className="flex items-center gap-4">
+        <span className="text-sm text-muted-foreground">
+          Welcome, {getUserEmail()}
+        </span>
+        <Button 
+          variant="outline" 
+          onClick={handleLogout}
+          className="gap-2"
+        >
+          <User className="w-4 h-4" />
+          Logout
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -36,7 +169,7 @@ export const AuthModal = () => {
       </DialogTrigger>
       <DialogContent className="bg-gradient-card border-border">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Welcome to Anime Geist</DialogTitle>
+          <DialogTitle className="text-foreground">Welcome to Ani-Match</DialogTitle>
         </DialogHeader>
         
         <Tabs defaultValue="login" className="w-full">
@@ -59,6 +192,7 @@ export const AuthModal = () => {
                     value={loginData.email}
                     onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                     required
+                    disabled={loading}
                   />
                 </div>
               </div>
@@ -75,11 +209,19 @@ export const AuthModal = () => {
                     value={loginData.password}
                     onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                     required
+                    disabled={loading}
                   />
                 </div>
               </div>
               
-              <Button type="submit" className="w-full bg-gradient-primary hover:opacity-90">
+              <Button 
+                type="submit" 
+                className="w-full bg-gradient-primary hover:opacity-90"
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
                 Login
               </Button>
             </form>
@@ -99,6 +241,7 @@ export const AuthModal = () => {
                     value={signupData.email}
                     onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
                     required
+                    disabled={loading}
                   />
                 </div>
               </div>
@@ -115,6 +258,7 @@ export const AuthModal = () => {
                     value={signupData.password}
                     onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
                     required
+                    disabled={loading}
                   />
                 </div>
               </div>
@@ -131,11 +275,19 @@ export const AuthModal = () => {
                     value={signupData.confirmPassword}
                     onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
                     required
+                    disabled={loading}
                   />
                 </div>
               </div>
               
-              <Button type="submit" className="w-full bg-gradient-primary hover:opacity-90">
+              <Button 
+                type="submit" 
+                className="w-full bg-gradient-primary hover:opacity-90"
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
                 Create Account
               </Button>
             </form>

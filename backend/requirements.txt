@@ -31,3 +31,8 @@ mypy==1.6.1
 
 # Optional (for data cleaning if needed)
 python-Levenshtein==0.23.0
+
+# Auth
+supabase
+flask-jwt-extended
+python-dotenv
