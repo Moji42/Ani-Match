@@ -3,8 +3,10 @@ import os
 import jwt
 import requests
 from functools import wraps
-from flask import request, jsonify, current_app
+from flask import request, jsonify, current_app, redirect
+from urllib.parse import urlencode
 import logging
+from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +14,14 @@ logger = logging.getLogger(__name__)
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+
+# GitHub OAuth configuration
+GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID')
+GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET')
+GITHUB_REDIRECT_URI = 'http://127.0.0.1:5000/auth/callback/github'
+
+# Initialize Supabase client
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 def verify_supabase_token(token):
     """Verify Supabase JWT token and extract user info"""
@@ -85,243 +95,203 @@ def auth_optional(f):
     
     return decorated_function
 
-# backend/user_service.py
-import pandas as pd
-import sqlite3
-import json
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
-import logging
+def github_auth():
+    """Initialize GitHub OAuth flow"""
+    try:
+        redirect_url = request.args.get('redirect_to', 'http://localhost:8080')
+        
+        # Build GitHub OAuth URL with proper parameters
+        params = {
+            'client_id': GITHUB_CLIENT_ID,
+            'redirect_uri': GITHUB_REDIRECT_URI,
+            'scope': 'user:email',
+            'state': redirect_url
+        }
+        
+        github_oauth_url = f"https://github.com/login/oauth/authorize?{urlencode(params)}"
+        logger.info(f"Redirecting to GitHub OAuth: {github_oauth_url}")
+        return redirect(github_oauth_url)
+            
+    except Exception as e:
+        logger.error(f"GitHub OAuth initiation error: {str(e)}")
+        return jsonify({"error": "GitHub OAuth initialization failed"}), 500
 
-logger = logging.getLogger(__name__)
+def github_oauth_callback():
+    """Handle GitHub OAuth callback"""
+    try:
+        code = request.args.get('code')
+        state = request.args.get('state')
+        error = request.args.get('error')
+        
+        logger.info(f"GitHub callback received - code: {code}, state: {state}, error: {error}")
+        
+        if error:
+            logger.error(f"GitHub OAuth error: {error}")
+            return jsonify({"error": f"GitHub OAuth failed: {error}"}), 400
+        
+        if not code:
+            logger.error("No authorization code received from GitHub")
+            return jsonify({"error": "Authorization code not received"}), 400
+        
+        # Exchange code for access token
+        token_response = requests.post(
+            'https://github.com/login/oauth/access_token',
+            headers={'Accept': 'application/json'},
+            data={
+                'client_id': GITHUB_CLIENT_ID,
+                'client_secret': GITHUB_CLIENT_SECRET,
+                'code': code,
+                'redirect_uri': GITHUB_REDIRECT_URI
+            },
+            timeout=30
+        )
+        
+        if not token_response.ok:
+            logger.error(f"Failed to get access token from GitHub: {token_response.status_code} - {token_response.text}")
+            return jsonify({"error": "Failed to get access token from GitHub"}), 400
+        
+        token_data = token_response.json()
+        access_token = token_data.get('access_token')
+        
+        if not access_token:
+            logger.error("No access token received from GitHub response")
+            return jsonify({"error": "No access token received from GitHub"}), 400
+        
+        # Get user info from GitHub
+        user_response = requests.get(
+            'https://api.github.com/user',
+            headers={
+                'Authorization': f'Bearer {access_token}',
+                'Accept': 'application/json'
+            },
+            timeout=30
+        )
+        
+        if not user_response.ok:
+            logger.error(f"Failed to get user info from GitHub: {user_response.status_code} - {user_response.text}")
+            return jsonify({"error": "Failed to get user info from GitHub"}), 400
+        
+        user_data = user_response.json()
+        
+        # Get user email
+        email_response = requests.get(
+            'https://api.github.com/user/emails',
+            headers={
+                'Authorization': f'Bearer {access_token}',
+                'Accept': 'application/json'
+            },
+            timeout=30
+        )
+        
+        email_data = email_response.json() if email_response.ok else []
+        primary_email = next((email['email'] for email in email_data if email.get('primary') and email.get('verified')), 
+                            user_data.get('email'))
+        
+        if not primary_email:
+            logger.error("No primary email found for GitHub user")
+            # Try to find any verified email
+            verified_email = next((email['email'] for email in email_data if email.get('verified')), None)
+            if not verified_email:
+                return jsonify({"error": "Could not retrieve verified email from GitHub"}), 400
+            primary_email = verified_email
+        
+        # Create a user ID based on GitHub ID
+        user_id = f"github_{user_data['id']}"
+        
+        # Generate JWT token for your application
+        from flask_jwt_extended import create_access_token
+        jwt_token = create_access_token(identity=user_id)
+        
+        # Return HTML that sends data back to parent window
+        response_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>GitHub Authentication Successful</title>
+            <script>
+                // Send auth data to parent window
+                const authData = {{
+                    access_token: '{jwt_token}',
+                    user_id: '{user_id}',
+                    email: '{primary_email}',
+                    provider: 'github'
+                }};
+                
+                window.opener.postMessage({{
+                    type: 'OAUTH_SUCCESS',
+                    data: authData
+                }}, '*');
+                
+                // Close the popup after a short delay
+                setTimeout(() => window.close(), 1000);
+            </script>
+        </head>
+        <body>
+            <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h2>GitHub Authentication Successful!</h2>
+                <p>Welcome, {primary_email}!</p>
+                <p>You can close this window now.</p>
+            </div>
+        </body>
+        </html>
+        """
+        return response_html
+            
+    except requests.Timeout:
+        logger.error("GitHub OAuth request timed out")
+        return jsonify({"error": "GitHub OAuth request timed out"}), 504
+    except requests.RequestException as e:
+        logger.error(f"GitHub OAuth network error: {str(e)}")
+        return jsonify({"error": "Network error during GitHub OAuth"}), 503
+    except Exception as e:
+        logger.error(f"GitHub OAuth callback error: {str(e)}", exc_info=True)
+        return jsonify({"error": f"GitHub OAuth callback failed: {str(e)}"}), 500
 
-class UserService:
-    def __init__(self, db_path='user_data.db'):
-        self.db_path = db_path
-        self.init_database()
-    
-    def init_database(self):
-        """Initialize SQLite database for user data"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # User preferences table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS user_preferences (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id TEXT NOT NULL,
-                    anime_name TEXT NOT NULL,
-                    action TEXT NOT NULL, -- 'like', 'dislike', 'rating'
-                    value REAL, -- rating value if applicable
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    genres TEXT, -- JSON array of genres
-                    UNIQUE(user_id, anime_name, action)
-                )
-            ''')
-            
-            # User stats table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS user_stats (
-                    user_id TEXT PRIMARY KEY,
-                    total_ratings INTEGER DEFAULT 0,
-                    average_rating REAL DEFAULT 0,
-                    favorite_genres TEXT, -- JSON array
-                    total_favorites INTEGER DEFAULT 0,
-                    total_watchlist INTEGER DEFAULT 0,
-                    recommendation_accuracy REAL DEFAULT 0,
-                    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            conn.commit()
-            conn.close()
-            logger.info("User database initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize database: {str(e)}")
-    
-    def add_user_preference(self, user_id: str, anime_name: str, action: str, value: Optional[float] = None, genres: Optional[List[str]] = None):
-        """Add or update user preference"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            genres_json = json.dumps(genres) if genres else None
-            
-            cursor.execute('''
-                INSERT OR REPLACE INTO user_preferences 
-                (user_id, anime_name, action, value, genres)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (user_id, anime_name, action, value, genres_json))
-            
-            conn.commit()
-            conn.close()
-            
-            # Update user stats
-            self.update_user_stats(user_id)
-            
-            logger.info(f"Added preference for user {user_id}: {action} {anime_name}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to add user preference: {str(e)}")
-            return False
-    
-    def get_user_preferences(self, user_id: str, action: Optional[str] = None) -> List[Dict]:
-        """Get user preferences, optionally filtered by action"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            if action:
-                cursor.execute('''
-                    SELECT * FROM user_preferences 
-                    WHERE user_id = ? AND action = ?
-                    ORDER BY timestamp DESC
-                ''', (user_id, action))
-            else:
-                cursor.execute('''
-                    SELECT * FROM user_preferences 
-                    WHERE user_id = ?
-                    ORDER BY timestamp DESC
-                ''', (user_id,))
-            
-            columns = [desc[0] for desc in cursor.description]
-            preferences = []
-            
-            for row in cursor.fetchall():
-                pref = dict(zip(columns, row))
-                if pref['genres']:
-                    pref['genres'] = json.loads(pref['genres'])
-                preferences.append(pref)
-            
-            conn.close()
-            return preferences
-            
-        except Exception as e:
-            logger.error(f"Failed to get user preferences: {str(e)}")
-            return []
-    
-    def get_user_stats(self, user_id: str) -> Dict:
-        """Get user statistics"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute('SELECT * FROM user_stats WHERE user_id = ?', (user_id,))
-            result = cursor.fetchone()
-            
-            if not result:
-                # Create default stats
-                default_stats = {
-                    'total_ratings': 0,
-                    'average_rating': 0,
-                    'favorite_genres': [],
-                    'total_favorites': 0,
-                    'total_watchlist': 0,
-                    'recommendation_accuracy': 0
-                }
-                self.update_user_stats(user_id)
-                conn.close()
-                return default_stats
-            
-            columns = [desc[0] for desc in cursor.description]
-            stats = dict(zip(columns, result))
-            
-            if stats['favorite_genres']:
-                stats['favorite_genres'] = json.loads(stats['favorite_genres'])
-            else:
-                stats['favorite_genres'] = []
-            
-            conn.close()
-            return stats
-            
-        except Exception as e:
-            logger.error(f"Failed to get user stats: {str(e)}")
-            return {}
-    
-    def update_user_stats(self, user_id: str):
-        """Update calculated user statistics"""
-        try:
-            preferences = self.get_user_preferences(user_id)
-            
-            # Calculate stats
-            ratings = [p for p in preferences if p['action'] == 'rating' and p['value']]
-            likes = [p for p in preferences if p['action'] == 'like']
-            
-            total_ratings = len(ratings)
-            average_rating = sum(r['value'] for r in ratings) / total_ratings if ratings else 0
-            total_favorites = len(likes)
-            
-            # Calculate favorite genres
-            all_genres = []
-            for pref in preferences:
-                if pref.get('genres'):
-                    all_genres.extend(pref['genres'])
-            
-            genre_counts = {}
-            for genre in all_genres:
-                genre_counts[genre] = genre_counts.get(genre, 0) + 1
-            
-            favorite_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-            favorite_genres = [genre for genre, count in favorite_genres]
-            
-            # Update database
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                INSERT OR REPLACE INTO user_stats 
-                (user_id, total_ratings, average_rating, favorite_genres, total_favorites, total_watchlist, recommendation_accuracy)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                user_id,
-                total_ratings,
-                average_rating,
-                json.dumps(favorite_genres),
-                total_favorites,
-                0,  # total_watchlist - not implemented yet
-                85.3  # recommendation_accuracy - mock value
-            ))
-            
-            conn.commit()
-            conn.close()
-            
-        except Exception as e:
-            logger.error(f"Failed to update user stats: {str(e)}")
-    
-    def get_recent_activity(self, user_id: str, limit: int = 10) -> List[Dict]:
-        """Get recent user activity"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                SELECT anime_name, action, value, timestamp, genres
-                FROM user_preferences 
-                WHERE user_id = ?
-                ORDER BY timestamp DESC
-                LIMIT ?
-            ''', (user_id, limit))
-            
-            activities = []
-            for row in cursor.fetchall():
-                activity = {
-                    'anime_name': row[0],
-                    'action': row[1],
-                    'value': row[2],
-                    'timestamp': row[3],
-                    'genres': json.loads(row[4]) if row[4] else []
-                }
-                activities.append(activity)
-            
-            conn.close()
-            return activities
-            
-        except Exception as e:
-            logger.error(f"Failed to get recent activity: {str(e)}")
-            return []
+def debug_github_config():
+    """Debug endpoint to check GitHub OAuth configuration"""
+    return jsonify({
+        "github_client_id": GITHUB_CLIENT_ID if GITHUB_CLIENT_ID else "NOT SET",
+        "github_client_secret": "SET" if GITHUB_CLIENT_SECRET else "NOT SET",
+        "github_redirect_uri": GITHUB_REDIRECT_URI,
+        "github_configured": bool(GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET),
+        "note": "Make sure GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are set in your .env file"
+    })
 
-# Initialize user service
-user_service = UserService()
+# User service functions
+def add_user_preference(user_id: str, anime_name: str, action: str, value: float = None, genres: list = None):
+    """Add or update user preference"""
+    try:
+        # This would typically interact with your database
+        # For now, we'll just log the action
+        logger.info(f"User {user_id} {action} {anime_name} with value {value}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to add user preference: {str(e)}")
+        return False
+
+def get_user_preferences(user_id: str, action: str = None):
+    """Get user preferences"""
+    try:
+        # This would typically query your database
+        # Return mock data for now
+        return []
+    except Exception as e:
+        logger.error(f"Failed to get user preferences: {str(e)}")
+        return []
+
+def get_user_stats(user_id: str):
+    """Get user statistics"""
+    try:
+        # This would typically query your database
+        # Return mock data for now
+        return {
+            'total_ratings': 0,
+            'average_rating': 0,
+            'favorite_genres': [],
+            'total_favorites': 0,
+            'total_watchlist': 0,
+            'recommendation_accuracy': 0
+        }
+    except Exception as e:
+        logger.error(f"Failed to get user stats: {str(e)}")
+        return {}

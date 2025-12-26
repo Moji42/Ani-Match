@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for, session
 from content_based import load_and_preprocess_data, build_similarity_matrix, get_recommendations
 from supabase import create_client, Client
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
@@ -12,6 +12,13 @@ from flask_caching import Cache
 from flask_cors import CORS
 from dotenv import load_dotenv
 import datetime
+import secrets
+import requests
+from urllib.parse import urlencode, urljoin
+from auth import (
+    auth_required, auth_optional, github_auth, github_oauth_callback, 
+    debug_github_config, add_user_preference, get_user_preferences, get_user_stats
+)
 
 # Load environment variables
 load_dotenv()
@@ -27,9 +34,14 @@ CORS(app, resources={
     }
 })
 
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
+BASE_URL = "http://127.0.0.1:5000"
+
 # Configure JWT
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'fallback-secret-key-change-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = datetime.timedelta(hours=24)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(16))
 jwt = JWTManager(app)
 
 # Configure Supabase
@@ -299,9 +311,132 @@ def login():
         else:
             return jsonify({"error": "Internal server error"}), 500
 
+# OAuth Routes
+@app.route('/auth/google', methods=['GET'])
+def google_auth():
+    """Initialize Google OAuth flow"""
+    try:
+        redirect_url = request.args.get('redirect_to', 'http://localhost:8080')
+        
+        # Use Supabase's OAuth directly
+        result = supabase.auth.sign_in_with_oauth({
+            "provider": "google",
+            "options": {
+                "redirect_to": url_for('oauth_callback', provider='google', _external=True)
+            }
+        })
+        
+        if hasattr(result, 'url'):
+            return redirect(result.url)
+        else:
+            # Fallback: redirect to Supabase OAuth URL directly
+            supabase_oauth_url = f"{supabase_url}/auth/v1/authorize"
+            params = {
+                'provider': 'google',
+                'redirect_to': url_for('oauth_callback', provider='google', _external=True)
+            }
+            return redirect(f"{supabase_oauth_url}?{urlencode(params)}")
+            
+    except Exception as e:
+        logger.error(f"Google OAuth initiation error: {str(e)}")
+        return jsonify({"error": "OAuth initialization failed"}), 500
 
-from flask import request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+@app.route('/auth/github', methods=['GET'])
+def github_auth():
+    """Initialize GitHub OAuth flow"""
+    try:
+        redirect_url = request.args.get('redirect_to', 'http://localhost:8080')
+        
+        # Use Supabase's OAuth directly
+        result = supabase.auth.sign_in_with_oauth({
+            "provider": "github",
+            "options": {
+                "redirect_to": url_for('oauth_callback', provider='github', _external=True)
+            }
+        })
+        
+        if hasattr(result, 'url'):
+            return redirect(result.url)
+        else:
+            # Fallback: redirect to Supabase OAuth URL directly
+            supabase_oauth_url = f"{supabase_url}/auth/v1/authorize"
+            params = {
+                'provider': 'github',
+                'redirect_to': url_for('oauth_callback', provider='github', _external=True)
+            }
+            return redirect(f"{supabase_oauth_url}?{urlencode(params)}")
+            
+    except Exception as e:
+        logger.error(f"GitHub OAuth initiation error: {str(e)}")
+        return jsonify({"error": "OAuth initialization failed"}), 500
+
+@app.route('/auth/callback/<provider>')
+def oauth_callback(provider):
+    """Handle OAuth callback from Google/GitHub"""
+    try:
+        # Get the authorization code from the callback
+        code = request.args.get('code')
+        error = request.args.get('error')
+        
+        if error:
+            logger.error(f"OAuth error from {provider}: {error}")
+            return jsonify({"error": f"OAuth failed: {error}"}), 400
+        
+        if not code:
+            return jsonify({"error": "Authorization code not received"}), 400
+        
+        # Exchange code for session with Supabase
+        result = supabase.auth.exchange_code_for_session({
+            "auth_code": code
+        })
+        
+        user = getattr(result, 'user', None)
+        session_data = getattr(result, 'session', None)
+        
+        if user and session_data:
+            # Generate JWT token for our application
+            access_token = create_access_token(identity=user.id)
+            
+            # Create HTML response that sends auth data to parent window
+            response_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Authentication Successful</title>
+                <script>
+                    // Send auth data to parent window
+                    const authData = {{
+                        access_token: '{access_token}',
+                        user_id: '{user.id}',
+                        email: '{user.email}',
+                        provider: '{provider}'
+                    }};
+                    
+                    window.opener.postMessage({{
+                        type: 'OAUTH_SUCCESS',
+                        data: authData
+                    }}, '*');
+                    
+                    // Close the popup after a short delay
+                    setTimeout(() => window.close(), 1000);
+                </script>
+            </head>
+            <body>
+                <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                    <h2>Authentication Successful!</h2>
+                    <p>Welcome, {user.email}</p>
+                    <p>You can close this window now.</p>
+                </div>
+            </body>
+            </html>
+            """
+            return response_html
+        else:
+            return jsonify({"error": "Failed to authenticate with OAuth provider"}), 401
+            
+    except Exception as e:
+        logger.error(f"OAuth callback error for {provider}: {str(e)}")
+        return jsonify({"error": f"OAuth callback failed: {str(e)}"}), 500
 
 @app.route('/auth/profile', methods=['GET'])
 @jwt_required()
@@ -313,14 +448,15 @@ def get_profile():
             return jsonify({"error": "Invalid or missing token"}), 401
 
         # Fetch user details from Supabase by ID
-        response = supabase.auth.admin.get_user(user_id)  # admin API fetch
+        response = supabase.auth.admin.get_user(user_id)
         user = getattr(response, "user", None)
 
         if user:
             return jsonify({
                 "user_id": user.id,
                 "email": user.email,
-                "created_at": user.created_at
+                "created_at": user.created_at,
+                "provider": getattr(user, 'app_metadata', {}).get('provider', 'email')
             }), 200
         else:
             return jsonify({"error": "User not found"}), 404
@@ -339,13 +475,18 @@ def get_profile():
 @jwt_required()
 def logout():
     try:
-        # Invalidate token on client side
+        # Optionally invalidate Supabase session
+        try:
+            supabase.auth.sign_out()
+        except:
+            pass  # Continue even if Supabase logout fails
+        
         return jsonify({"message": "Logout successful"}), 200
     except Exception as e:
         logger.error(f"Logout error: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
-# Recommendation Endpoints
+# Recommendation Endpoints (keeping all existing ones)
 @app.route('/recommend/content', methods=['GET'])
 @jwt_required()
 @cache.cached(timeout=CONFIG['cache_timeout'], query_string=True)
@@ -513,7 +654,6 @@ def get_available_types():
     except Exception as e:
         logger.error(f"Failed to get available types: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
-
 
 @app.route('/recommend/replacement', methods=['GET'])
 @jwt_required()

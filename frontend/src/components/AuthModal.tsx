@@ -1,12 +1,13 @@
-// Frontend/src/components/AuthModal.tsx
-import { useState } from "react";
+// components/AuthModal.tsx
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Mail, Lock, Loader2 } from "lucide-react";
+import { User, Mail, Lock, Loader2, Github, Chrome } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useOAuth } from "@/hooks/useOAuth";
 
 interface AuthResponse {
   message: string;
@@ -20,56 +21,81 @@ export const AuthModal = () => {
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [signupData, setSignupData] = useState({ email: "", password: "", confirmPassword: "" });
   const [loading, setLoading] = useState(false);
+  const { startOAuthFlow, loading: oauthLoading } = useOAuth();
   const { toast } = useToast();
 
   const baseUrl = "http://127.0.0.1:5000";
 
+  // Listen for OAuth success messages from the popup
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'OAUTH_SUCCESS') {
+        const { access_token, user_id, email, provider } = event.data.data;
+
+        localStorage.setItem('access_token', access_token);
+        localStorage.setItem('user_id', user_id);
+        localStorage.setItem('user_email', email);
+        localStorage.setItem('auth_provider', provider);
+
+        toast({
+          title: `Signed in with ${provider}!`,
+          description: `Welcome, ${email}!`,
+        });
+
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [toast]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
-    try {
-        const response = await fetch(`${baseUrl}/auth/login`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(loginData),
-        });
 
-        const data = await response.json();
-        
-        if (response.ok) {
-            localStorage.setItem('access_token', data.access_token);
-            localStorage.setItem('user_id', data.user_id);
-            localStorage.setItem('user_email', data.email);
-            
-            toast({
-                title: "Login successful!",
-                description: `Welcome back, ${data.email}!`,
-            });
-            setOpen(false);
-        } else {
-            toast({
-                title: "Login failed",
-                description: data.error || "Invalid credentials",
-                variant: "destructive",
-            });
-        }
-    } catch (error) {
+    try {
+      const response = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(loginData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('user_id', data.user_id);
+        localStorage.setItem('user_email', data.email);
+
         toast({
-            title: "Login error",
-            description: "Could not connect to server",
-            variant: "destructive",
+          title: "Login successful!",
+          description: `Welcome back, ${data.email}!`,
         });
+        setOpen(false);
+      } else {
+        toast({
+          title: "Login failed",
+          description: data.error || "Invalid credentials",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Login error",
+        description: "Could not connect to server",
+        variant: "destructive",
+      });
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-};
+  };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (signupData.password !== signupData.confirmPassword) {
       toast({
         title: "Passwords don't match",
@@ -78,9 +104,9 @@ export const AuthModal = () => {
       });
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
       const response = await fetch(`${baseUrl}/auth/register`, {
         method: 'POST',
@@ -98,7 +124,7 @@ export const AuthModal = () => {
         localStorage.setItem('access_token', data.access_token);
         localStorage.setItem('user_id', data.user_id);
         localStorage.setItem('user_email', data.email);
-        
+
         toast({
           title: "Account created!",
           description: `Welcome, ${data.email}!`,
@@ -124,12 +150,15 @@ export const AuthModal = () => {
   };
 
   const handleLogout = () => {
+    const provider = localStorage.getItem('auth_provider');
     localStorage.removeItem('access_token');
     localStorage.removeItem('user_id');
     localStorage.removeItem('user_email');
+    localStorage.removeItem('auth_provider');
+
     toast({
       title: "Logged out",
-      description: "You have been logged out successfully",
+      description: `You have been logged out from ${provider || 'your account'}`,
     });
   };
 
@@ -141,19 +170,23 @@ export const AuthModal = () => {
     return localStorage.getItem('user_email');
   };
 
+  const getAuthProvider = () => {
+    return localStorage.getItem('auth_provider') || 'email';
+  };
+
   if (isLoggedIn()) {
     return (
       <div className="flex items-center gap-4">
         <span className="text-sm text-muted-foreground">
           Welcome, {getUserEmail()}
         </span>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           onClick={handleLogout}
           className="gap-2"
         >
           <User className="w-4 h-4" />
-          Logout
+          Logout ({getAuthProvider()})
         </Button>
       </div>
     );
@@ -167,17 +200,61 @@ export const AuthModal = () => {
           Sign In
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-gradient-card border-border">
+      <DialogContent className="bg-gradient-card border-border sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Welcome to Ani-Match</DialogTitle>
+          <DialogTitle className="text-foreground text-center">Welcome to Ani-Match</DialogTitle>
         </DialogHeader>
-        
+
+        {/* OAuth Buttons */}
+        <div className="space-y-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2"
+            onClick={() => startOAuthFlow('google')}
+            disabled={!!loading || !!oauthLoading}
+          >
+            {oauthLoading === 'google' ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Chrome className="w-4 h-4" />
+            )}
+            Continue with Google
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2"
+            onClick={() => startOAuthFlow('github')}
+            disabled={!!loading || !!oauthLoading}
+          >
+            {oauthLoading === 'github' ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Github className="w-4 h-4" />
+            )}
+            Continue with GitHub
+          </Button>
+        </div>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">
+              Or continue with email
+            </span>
+          </div>
+        </div>
+
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-secondary">
             <TabsTrigger value="login">Login</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="login" className="space-y-4">
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
@@ -192,11 +269,11 @@ export const AuthModal = () => {
                     value={loginData.email}
                     onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                     required
-                    disabled={loading}
+                    disabled={loading || !!oauthLoading}
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="login-password" className="text-foreground">Password</Label>
                 <div className="relative">
@@ -209,15 +286,15 @@ export const AuthModal = () => {
                     value={loginData.password}
                     onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                     required
-                    disabled={loading}
+                    disabled={loading || !!oauthLoading}
                   />
                 </div>
               </div>
-              
-              <Button 
-                type="submit" 
+
+              <Button
+                type="submit"
                 className="w-full bg-gradient-primary hover:opacity-90"
-                disabled={loading}
+                disabled={loading || !!oauthLoading}
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -226,7 +303,7 @@ export const AuthModal = () => {
               </Button>
             </form>
           </TabsContent>
-          
+
           <TabsContent value="signup" className="space-y-4">
             <form onSubmit={handleSignup} className="space-y-4">
               <div className="space-y-2">
@@ -241,11 +318,11 @@ export const AuthModal = () => {
                     value={signupData.email}
                     onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
                     required
-                    disabled={loading}
+                    disabled={loading || !!oauthLoading}
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="signup-password" className="text-foreground">Password</Label>
                 <div className="relative">
@@ -258,11 +335,11 @@ export const AuthModal = () => {
                     value={signupData.password}
                     onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
                     required
-                    disabled={loading}
+                    disabled={loading || !!oauthLoading}
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="confirm-password" className="text-foreground">Confirm Password</Label>
                 <div className="relative">
@@ -275,15 +352,15 @@ export const AuthModal = () => {
                     value={signupData.confirmPassword}
                     onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
                     required
-                    disabled={loading}
+                    disabled={loading || !!oauthLoading}
                   />
                 </div>
               </div>
-              
-              <Button 
-                type="submit" 
+
+              <Button
+                type="submit"
                 className="w-full bg-gradient-primary hover:opacity-90"
-                disabled={loading}
+                disabled={loading || !!oauthLoading}
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
