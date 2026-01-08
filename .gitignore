@@ -41,4 +41,4 @@ backend/collab_model.pkl
 # -------------------------
 # Supabase folder
 # -------------------------
-frontend/supabase/
+frontend/supabase/.env
