@@ -1,55 +1,67 @@
 # backend/auth.py
+from dotenv import load_dotenv
+load_dotenv()  # ensure .env is loaded before any os.getenv calls
+
 import os
 import jwt
 import requests
 from functools import wraps
-from flask import request, jsonify, current_app, redirect
+from flask import request, jsonify, redirect
 from urllib.parse import urlencode
 import logging
 from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
 
-# Supabase configuration
+# Supabase configuration (be tolerant of alternate env var names)
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
-SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+# accept either SUPABASE_JWT_SECRET or JWT_SECRET_KEY
+SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET') or os.getenv('JWT_SECRET_KEY')
+# accept either SUPABASE_SERVICE_KEY or SUPABASE_KEY
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_KEY')
 
 # GitHub OAuth configuration
 GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID')
 GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET')
-GITHUB_REDIRECT_URI = 'http://127.0.0.1:5000/auth/callback/github'
+GITHUB_REDIRECT_URI = os.getenv('GITHUB_REDIRECT_URI') or os.getenv('GITHUB_CALLBACK') or 'http://127.0.0.1:5000/auth/callback/github'
 
-# Initialize Supabase client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+# Initialize Supabase client only if credentials exist
+supabase: Client = None
+if SUPABASE_URL and SUPABASE_SERVICE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        logger.info("Supabase client initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize Supabase client: {e}", exc_info=True)
+else:
+    logger.warning("Supabase credentials not fully set - supabase client NOT initialized")
 
 def verify_supabase_token(token):
     """Verify Supabase JWT token and extract user info"""
     try:
         if not token:
             return None
-            
+
         # Remove 'Bearer ' prefix if present
         if token.startswith('Bearer '):
             token = token[7:]
-        
-        # For development, if JWT_SECRET is not set, use a simple user ID extraction
+
+        # For development, if JWT secret is not set, use a simple fallback
         if not SUPABASE_JWT_SECRET:
-            logger.warning("SUPABASE_JWT_SECRET not set, using development mode")
-            # Extract user ID from token (assuming it's formatted as user_id)
+            logger.warning("SUPABASE_JWT_SECRET/JWT_SECRET_KEY not set, using development fallback")
+            # Extract user ID from token (assuming it's formatted as user_id) — fallback only
             return {'sub': token, 'email': f'user-{token}@example.com'}
-        
-        # Decode and verify the JWT token using Supabase's JWT secret
+
+        # Decode and verify the JWT token using the configured secret
         payload = jwt.decode(
             token,
             SUPABASE_JWT_SECRET,
             algorithms=['HS256'],
             audience="authenticated",
-            options={"verify_aud": False}  # Supabase tokens might not have proper audience
+            options={"verify_aud": False}  # flexibility for tokens without aud
         )
-        
         return payload
-        
+
     except jwt.ExpiredSignatureError:
         logger.error("Token has expired")
         return None
@@ -65,18 +77,18 @@ def auth_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
-        
+
         if not auth_header:
             return jsonify({'error': 'Authorization header required'}), 401
-        
+
         user_info = verify_supabase_token(auth_header)
         if not user_info:
             return jsonify({'error': 'Invalid or expired token'}), 401
-        
-        # Add user info to request context
+
+        # Attach user info to the request object
         request.user = user_info
         return f(*args, **kwargs)
-    
+
     return decorated_function
 
 def auth_optional(f):
@@ -85,54 +97,52 @@ def auth_optional(f):
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
         request.user = None
-        
+
         if auth_header:
             user_info = verify_supabase_token(auth_header)
             if user_info:
                 request.user = user_info
-        
+
         return f(*args, **kwargs)
-    
+
     return decorated_function
 
 def github_auth():
-    """Initialize GitHub OAuth flow"""
+    """Initialize GitHub OAuth flow (fallback direct GitHub URL if needed)"""
     try:
         redirect_url = request.args.get('redirect_to', 'http://localhost:8080')
-        
-        # Build GitHub OAuth URL with proper parameters
+
         params = {
             'client_id': GITHUB_CLIENT_ID,
             'redirect_uri': GITHUB_REDIRECT_URI,
             'scope': 'user:email',
             'state': redirect_url
         }
-        
         github_oauth_url = f"https://github.com/login/oauth/authorize?{urlencode(params)}"
         logger.info(f"Redirecting to GitHub OAuth: {github_oauth_url}")
         return redirect(github_oauth_url)
-            
+
     except Exception as e:
         logger.error(f"GitHub OAuth initiation error: {str(e)}")
         return jsonify({"error": "GitHub OAuth initialization failed"}), 500
 
 def github_oauth_callback():
-    """Handle GitHub OAuth callback"""
+    """Handle GitHub OAuth callback (manual flow)"""
     try:
         code = request.args.get('code')
         state = request.args.get('state')
         error = request.args.get('error')
-        
+
         logger.info(f"GitHub callback received - code: {code}, state: {state}, error: {error}")
-        
+
         if error:
             logger.error(f"GitHub OAuth error: {error}")
             return jsonify({"error": f"GitHub OAuth failed: {error}"}), 400
-        
+
         if not code:
             logger.error("No authorization code received from GitHub")
             return jsonify({"error": "Authorization code not received"}), 400
-        
+
         # Exchange code for access token
         token_response = requests.post(
             'https://github.com/login/oauth/access_token',
@@ -145,18 +155,18 @@ def github_oauth_callback():
             },
             timeout=30
         )
-        
+
         if not token_response.ok:
             logger.error(f"Failed to get access token from GitHub: {token_response.status_code} - {token_response.text}")
             return jsonify({"error": "Failed to get access token from GitHub"}), 400
-        
+
         token_data = token_response.json()
         access_token = token_data.get('access_token')
-        
+
         if not access_token:
             logger.error("No access token received from GitHub response")
             return jsonify({"error": "No access token received from GitHub"}), 400
-        
+
         # Get user info from GitHub
         user_response = requests.get(
             'https://api.github.com/user',
@@ -166,13 +176,13 @@ def github_oauth_callback():
             },
             timeout=30
         )
-        
+
         if not user_response.ok:
             logger.error(f"Failed to get user info from GitHub: {user_response.status_code} - {user_response.text}")
             return jsonify({"error": "Failed to get user info from GitHub"}), 400
-        
+
         user_data = user_response.json()
-        
+
         # Get user email
         email_response = requests.get(
             'https://api.github.com/user/emails',
@@ -182,26 +192,24 @@ def github_oauth_callback():
             },
             timeout=30
         )
-        
+
         email_data = email_response.json() if email_response.ok else []
-        primary_email = next((email['email'] for email in email_data if email.get('primary') and email.get('verified')), 
-                            user_data.get('email'))
-        
+        primary_email = next((email['email'] for email in email_data if email.get('primary') and email.get('verified')),
+                             user_data.get('email'))
+
         if not primary_email:
             logger.error("No primary email found for GitHub user")
-            # Try to find any verified email
             verified_email = next((email['email'] for email in email_data if email.get('verified')), None)
             if not verified_email:
                 return jsonify({"error": "Could not retrieve verified email from GitHub"}), 400
             primary_email = verified_email
-        
-        # Create a user ID based on GitHub ID
+
         user_id = f"github_{user_data['id']}"
-        
-        # Generate JWT token for your application
+
+        # create_access_token imported at runtime to avoid a circular import if needed
         from flask_jwt_extended import create_access_token
         jwt_token = create_access_token(identity=user_id)
-        
+
         # Return HTML that sends data back to parent window
         response_html = f"""
         <!DOCTYPE html>
@@ -209,20 +217,16 @@ def github_oauth_callback():
         <head>
             <title>GitHub Authentication Successful</title>
             <script>
-                // Send auth data to parent window
                 const authData = {{
                     access_token: '{jwt_token}',
                     user_id: '{user_id}',
                     email: '{primary_email}',
                     provider: 'github'
                 }};
-                
                 window.opener.postMessage({{
                     type: 'OAUTH_SUCCESS',
                     data: authData
                 }}, '*');
-                
-                // Close the popup after a short delay
                 setTimeout(() => window.close(), 1000);
             </script>
         </head>
@@ -236,7 +240,7 @@ def github_oauth_callback():
         </html>
         """
         return response_html
-            
+
     except requests.Timeout:
         logger.error("GitHub OAuth request timed out")
         return jsonify({"error": "GitHub OAuth request timed out"}), 504
@@ -257,12 +261,9 @@ def debug_github_config():
         "note": "Make sure GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are set in your .env file"
     })
 
-# User service functions
+# user service helpers (unchanged - simple mocks)
 def add_user_preference(user_id: str, anime_name: str, action: str, value: float = None, genres: list = None):
-    """Add or update user preference"""
     try:
-        # This would typically interact with your database
-        # For now, we'll just log the action
         logger.info(f"User {user_id} {action} {anime_name} with value {value}")
         return True
     except Exception as e:
@@ -270,20 +271,14 @@ def add_user_preference(user_id: str, anime_name: str, action: str, value: float
         return False
 
 def get_user_preferences(user_id: str, action: str = None):
-    """Get user preferences"""
     try:
-        # This would typically query your database
-        # Return mock data for now
         return []
     except Exception as e:
         logger.error(f"Failed to get user preferences: {str(e)}")
         return []
 
 def get_user_stats(user_id: str):
-    """Get user statistics"""
     try:
-        # This would typically query your database
-        # Return mock data for now
         return {
             'total_ratings': 0,
             'average_rating': 0,

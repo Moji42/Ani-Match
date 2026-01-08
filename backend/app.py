@@ -1,3 +1,4 @@
+#backend/app.py
 from flask import Flask, request, jsonify, redirect, url_for, session
 from content_based import load_and_preprocess_data, build_similarity_matrix, get_recommendations
 from supabase import create_client, Client
@@ -342,38 +343,23 @@ def google_auth():
         return jsonify({"error": "OAuth initialization failed"}), 500
 
 @app.route('/auth/github', methods=['GET'])
-def github_auth():
-    """Initialize GitHub OAuth flow"""
+def github_auth_route():
+    """Delegate GitHub OAuth initiation to backend/auth.py implementation."""
     try:
-        redirect_url = request.args.get('redirect_to', 'http://localhost:8080')
-        
-        # Use Supabase's OAuth directly
-        result = supabase.auth.sign_in_with_oauth({
-            "provider": "github",
-            "options": {
-                "redirect_to": url_for('oauth_callback', provider='github', _external=True)
-            }
-        })
-        
-        if hasattr(result, 'url'):
-            return redirect(result.url)
-        else:
-            # Fallback: redirect to Supabase OAuth URL directly
-            supabase_oauth_url = f"{supabase_url}/auth/v1/authorize"
-            params = {
-                'provider': 'github',
-                'redirect_to': url_for('oauth_callback', provider='github', _external=True)
-            }
-            return redirect(f"{supabase_oauth_url}?{urlencode(params)}")
-            
+        # call the github_auth implementation imported from auth.py
+        return github_auth()
     except Exception as e:
-        logger.error(f"GitHub OAuth initiation error: {str(e)}")
+        logger.error(f"GitHub OAuth initiation delegation error: {str(e)}")
         return jsonify({"error": "OAuth initialization failed"}), 500
 
 @app.route('/auth/callback/<provider>')
 def oauth_callback(provider):
     """Handle OAuth callback from Google/GitHub"""
     try:
+        # Delegate to auth module for provider-specific handling when available
+        if provider == 'github':
+            return github_oauth_callback()
+
         # Get the authorization code from the callback
         code = request.args.get('code')
         error = request.args.get('error')
