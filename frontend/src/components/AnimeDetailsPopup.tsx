@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -110,38 +110,26 @@ const getStreamingSources = (animeName: string): StreamingSource[] => {
   return shuffled.slice(0, selectedCount);
 };
 
-// Enhanced mock function for anime details with more realistic data
-const getAnimeDetails = (animeName: string): Partial<AnimeDetails> => {
+// Lightweight mock for fallback details (kept for instant UI before fetch)
+const getMockDetails = (animeName: string): Partial<AnimeDetails> => {
   const animeTypes = ["TV", "Movie", "OVA", "Special", "ONA"];
-  const statuses = ["Completed", "Ongoing", "Upcoming", "On Hiatus"];
-  const sources = ["Manga", "Light Novel", "Original", "Game", "Visual Novel", "Novel"];
   const studios = [
     "Mappa", "Wit Studio", "Toei Animation", "Madhouse", "Bones", "Studio Pierrot",
     "Production I.G", "A-1 Pictures", "Sunrise", "Trigger", "Kyoto Animation",
     "White Fox", "David Production", "Shaft", "Cloverworks"
   ];
 
-  // Create synopsis based on anime name for more realistic content
-  const createSynopsis = (name: string): string => {
-    const templates = [
-      `${name} follows the journey of extraordinary characters as they navigate a world filled with challenges, mysteries, and unexpected alliances. With stunning animation and compelling storytelling, this series explores themes of friendship, courage, and personal growth.`,
-      `In the world of ${name}, our protagonists face incredible odds as they fight to protect what they hold dear. This gripping tale combines intense action sequences with deep character development and emotional storytelling.`,
-      `${name} presents a unique and captivating story that has captured the hearts of fans worldwide. Through its compelling narrative and memorable characters, the series delivers both entertainment and meaningful life lessons.`
-    ];
-    return templates[Math.floor(Math.random() * templates.length)];
-  };
-
   return {
-    synopsis: createSynopsis(animeName),
-    episodes: Math.floor(Math.random() * 300) + 12, // 12-312 episodes
-    status: statuses[Math.floor(Math.random() * statuses.length)],
-    year: 2015 + Math.floor(Math.random() * 9), // 2015-2023
+    synopsis: undefined,
+    episodes: Math.floor(Math.random() * 300) + 12,
+    status: undefined,
+    year: 2010 + Math.floor(Math.random() * 14),
     studio: studios[Math.floor(Math.random() * studios.length)],
     duration: Math.random() > 0.8 ? "24 min" : Math.random() > 0.5 ? "23 min" : "22 min",
     ranked: Math.floor(Math.random() * 2000) + 1,
     popularity: Math.floor(Math.random() * 10000) + 100,
     members: Math.floor(Math.random() * 2000000) + 10000,
-    source: sources[Math.floor(Math.random() * sources.length)],
+    source: undefined,
     type: animeTypes[Math.floor(Math.random() * animeTypes.length)]
   };
 };
@@ -152,7 +140,7 @@ export const AnimeDetailsPopup: React.FC<AnimeDetailsPopupProps> = ({
   onOpenChange,
 }) => {
   const [streamingSources] = useState<StreamingSource[]>(() => getStreamingSources(anime.Anime));
-  const [additionalDetails] = useState<Partial<AnimeDetails>>(() => getAnimeDetails(anime.Anime));
+  const [additionalDetails, setAdditionalDetails] = useState<Partial<AnimeDetails>>(() => getMockDetails(anime.Anime));
   const [isInFavorites, setIsInFavorites] = useState(false);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const { toast } = useToast();
@@ -160,22 +148,25 @@ export const AnimeDetailsPopup: React.FC<AnimeDetailsPopupProps> = ({
   const genres = Array.isArray(anime.Genres) ? anime.Genres : anime.Genres?.split(',') || [];
   const rating = anime.Rating || additionalDetails.score || 0;
 
-  const getSourceTypeColor = (type: StreamingSource['type']) => {
+  
+
+  // Return both a tailwind class and a hex color for consistent styling
+  const getSourceMeta = (type: StreamingSource['type']) => {
     switch (type) {
-      case 'legal': return 'bg-green-500';
-      case 'subscription': return 'bg-blue-500';
-      case 'free': return 'bg-purple-500';
-      default: return 'bg-gray-500';
+      case 'legal': return { className: 'bg-green-500', label: 'Official', color: '#10b981' };
+      case 'subscription': return { className: 'bg-blue-500', label: 'Premium', color: '#3b82f6' };
+      case 'free': return { className: 'bg-purple-500', label: 'Free', color: '#a78bfa' };
+      default: return { className: 'bg-gray-500', label: 'Unknown', color: '#6b7280' };
     }
   };
 
-  const getSourceTypeLabel = (type: StreamingSource['type']) => {
-    switch (type) {
-      case 'legal': return 'Official';
-      case 'subscription': return 'Premium';
-      case 'free': return 'Free';
-      default: return 'Unknown';
-    }
+  const hexToRgba = (hex: string, alpha = 1) => {
+    const h = hex.replace('#', '');
+    const bigint = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
   const handleStreamingClick = (source: StreamingSource) => {
@@ -187,20 +178,156 @@ export const AnimeDetailsPopup: React.FC<AnimeDetailsPopupProps> = ({
   };
 
   const handleAddToFavorites = () => {
-    setIsInFavorites(!isInFavorites);
-    toast({
-      title: isInFavorites ? "Removed from Favorites" : "Added to Favorites",
-      description: `"${anime.Anime}" ${isInFavorites ? 'removed from' : 'added to'} your favorites list.`,
-    });
+    const save = async () => {
+      const baseUrl = 'http://127.0.0.1:5000';
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        toast({ title: 'Sign in required', description: 'Please sign in to save favorites', variant: 'destructive' });
+        return;
+      }
+
+      try {
+        if (!isInFavorites) {
+          const res = await fetch(`${baseUrl}/user/favorites`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ anime: anime.Anime })
+          });
+          if (!res.ok) throw new Error('Failed to add favorite');
+          setIsInFavorites(true);
+          toast({ title: 'Added to Favorites', description: `"${anime.Anime}" added to your favorites.` });
+        } else {
+          const res = await fetch(`${baseUrl}/user/favorites`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ anime: anime.Anime })
+          });
+          if (!res.ok) throw new Error('Failed to remove favorite');
+          setIsInFavorites(false);
+          toast({ title: 'Removed from Favorites', description: `"${anime.Anime}" removed from your favorites.` });
+        }
+      } catch (e) {
+        console.error('Favorite update failed', e);
+        toast({ title: 'Error', description: 'Could not update favorites', variant: 'destructive' });
+      }
+    };
+
+    void save();
   };
 
   const handleAddToWatchlist = () => {
-    setIsInWatchlist(!isInWatchlist);
-    toast({
-      title: isInWatchlist ? "Removed from Watchlist" : "Added to Watchlist",
-      description: `"${anime.Anime}" ${isInWatchlist ? 'removed from' : 'added to'} your watch list.`,
-    });
+    const save = async () => {
+      const baseUrl = 'http://127.0.0.1:5000';
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        toast({ title: 'Sign in required', description: 'Please sign in to save watchlist', variant: 'destructive' });
+        return;
+      }
+
+      try {
+        if (!isInWatchlist) {
+          const res = await fetch(`${baseUrl}/user/watchlist`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ anime: anime.Anime })
+          });
+          if (!res.ok) throw new Error('Failed to add to watchlist');
+          setIsInWatchlist(true);
+          toast({ title: 'Added to Watchlist', description: `"${anime.Anime}" added to your watchlist.` });
+        } else {
+          const res = await fetch(`${baseUrl}/user/watchlist`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ anime: anime.Anime })
+          });
+          if (!res.ok) throw new Error('Failed to remove from watchlist');
+          setIsInWatchlist(false);
+          toast({ title: 'Removed from Watchlist', description: `"${anime.Anime}" removed from your watchlist.` });
+        }
+      } catch (e) {
+        console.error('Watchlist update failed', e);
+        toast({ title: 'Error', description: 'Could not update watchlist', variant: 'destructive' });
+      }
+    };
+
+    void save();
   };
+
+  // Fetch real synopsis/details from Jikan API and cache in sessionStorage
+  useEffect(() => {
+    const key = `anime_details:${anime.Anime}`;
+    const cached = typeof window !== 'undefined' ? sessionStorage.getItem(key) : null;
+    if (cached) {
+      try { setAdditionalDetails(prev => ({ ...prev, ...(JSON.parse(cached) as Partial<AnimeDetails>) })); } catch { }
+      return;
+    }
+
+    let cancelled = false;
+    const fetchDetails = async () => {
+      try {
+        const q = encodeURIComponent(anime.Anime);
+        const res = await fetch(`https://api.jikan.moe/v4/anime?q=${q}&limit=1`);
+        if (!res.ok) return;
+        const json = await res.json();
+        const entry = json?.data && json.data[0];
+        if (!entry || cancelled) return;
+
+        const rawStatus = (anime as any).status || entry.status || undefined;
+        const details: Partial<AnimeDetails> = {
+          synopsis: entry.synopsis || undefined,
+          episodes: entry.episodes || undefined,
+          status: normalizeStatus(rawStatus),
+          year: entry.aired?.from ? new Date(entry.aired.from).getFullYear() : undefined,
+          studio: entry.studios && entry.studios[0]?.name || undefined,
+          duration: entry.duration || undefined,
+          score: entry.score || undefined,
+          ranked: entry.rank || undefined,
+          popularity: entry.popularity || undefined,
+          members: entry.members || undefined,
+          source: entry.source || undefined,
+          type: (anime as any).type || entry.type || undefined,
+        };
+
+        try { sessionStorage.setItem(key, JSON.stringify(details)); } catch {}
+        if (!cancelled) setAdditionalDetails(prev => ({ ...prev, ...details }));
+      } catch (e) {
+        // silently fail; UI keeps mock details
+      }
+    };
+
+    fetchDetails();
+    return () => { cancelled = true; };
+  }, [anime.Anime, anime.status, anime.type]);
+
+  // When popup opens, check if this anime is already in user's favorites/watchlist
+  useEffect(() => {
+    const checkSavedState = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+
+      try {
+        const baseUrl = 'http://127.0.0.1:5000';
+        const [favRes, watchRes] = await Promise.all([
+          fetch(`${baseUrl}/user/favorites`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${baseUrl}/user/watchlist`, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+
+        if (favRes.ok) {
+          const favs = await favRes.json();
+          setIsInFavorites(Array.isArray(favs) && favs.some((f: any) => f.anime === anime.Anime));
+        }
+
+        if (watchRes.ok) {
+          const watches = await watchRes.json();
+          setIsInWatchlist(Array.isArray(watches) && watches.some((w: any) => w.anime === anime.Anime));
+        }
+      } catch (e) {
+        console.error('Failed to check saved favorites/watchlist:', e);
+      }
+    };
+
+    if (open) void checkSavedState();
+  }, [open, anime.Anime]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -225,16 +352,22 @@ export const AnimeDetailsPopup: React.FC<AnimeDetailsPopupProps> = ({
                     <span>{additionalDetails.year}</span>
                   </div>
                 )}
-                {additionalDetails.type && (
-                  <Badge variant="outline">{additionalDetails.type}</Badge>
-                )}
+                {/* Type removed from header to avoid redundancy with card format display */}
                 {additionalDetails.status && (
-                  <Badge 
-                    variant={additionalDetails.status === "Completed" ? "default" : "secondary"}
-                    className={additionalDetails.status === "Ongoing" ? "bg-green-500/20 text-green-400 border-green-500/30" : ""}
-                  >
-                    {additionalDetails.status}
-                  </Badge>
+                  (() => {
+                    const s = additionalDetails.status;
+                    const cls = s === 'Finished Airing' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                      : s === 'Currently Airing' ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                      : s === 'Upcoming' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                      : s === 'On Hiatus' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                      : 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+
+                    return (
+                      <Badge variant="outline" className={cls}>
+                        {s}
+                      </Badge>
+                    );
+                  })()
                 )}
               </div>
             </div>
@@ -378,28 +511,42 @@ export const AnimeDetailsPopup: React.FC<AnimeDetailsPopupProps> = ({
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${getSourceTypeColor(source.type)} shadow-sm`} />
-                        <div>
-                          <p className="font-medium text-foreground">{source.name}</p>
-                          {source.region && (
-                            <p className="text-xs text-muted-foreground">{source.region}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge 
-                          variant="outline" 
-                          className="text-xs capitalize border-primary/30"
-                          style={{ 
-                            backgroundColor: `${getSourceTypeColor(source.type)}20`,
-                            borderColor: `${getSourceTypeColor(source.type)}50`
-                          }}
-                        >
-                          {getSourceTypeLabel(source.type)}
-                        </Badge>
-                        <ExternalLink className="w-4 h-4 text-muted-foreground" />
-                      </div>
+                              <div className="flex items-center gap-3">
+                                {(() => {
+                                  const meta = getSourceMeta(source.type);
+                                  return (
+                                    <>
+                                      <div className={`w-3 h-3 rounded-full ${meta.className} shadow-sm`} />
+                                      <div>
+                                        <p className="font-medium text-foreground">{source.name}</p>
+                                        {source.region && (
+                                          <p className="text-xs text-muted-foreground">{source.region}</p>
+                                        )}
+                                      </div>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {(() => {
+                                  const meta = getSourceMeta(source.type);
+                                  return (
+                                    <>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs capitalize border-primary/30"
+                                        style={{
+                                          backgroundColor: hexToRgba(meta.color, 0.12),
+                                          borderColor: hexToRgba(meta.color, 0.28),
+                                        }}
+                                      >
+                                        {meta.label}
+                                      </Badge>
+                                      <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                                    </>
+                                  );
+                                })()}
+                              </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -462,4 +609,16 @@ export const AnimeDetailsPopup: React.FC<AnimeDetailsPopupProps> = ({
       </DialogContent>
     </Dialog>
   );
+};
+
+// Normalize various status strings to a small canonical set used in the UI
+const normalizeStatus = (raw?: string | null): string | undefined => {
+  if (!raw) return undefined;
+  const s = raw.toLowerCase().trim();
+  if (s.includes('finish') || s.includes('finished') || s.includes('complete') || s === 'completed') return 'Finished Airing';
+  if (s.includes('currently') || s.includes('airing') || s === 'ongoing') return 'Currently Airing';
+  if (s.includes('not yet') || s.includes('not yet aired') || s.includes('upcoming') || s === 'upcoming') return 'Upcoming';
+  if (s.includes('hiatus')) return 'On Hiatus';
+  // fallback to title-case-ish original if none matched
+  return raw;
 };

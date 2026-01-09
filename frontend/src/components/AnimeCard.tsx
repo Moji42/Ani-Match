@@ -197,7 +197,13 @@ export const AnimeCard = ({
       </div>
 
       <AnimeDetailsPopup
-        anime={{ Anime: anime.Anime, Rating: rating, Genres: genres, type }}
+        anime={{
+          Anime: anime.Anime,
+          Rating: rating,
+          Genres: genres,
+          type,
+          status: (anime as any).Status || (anime as any).status || undefined,
+        }}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
       />

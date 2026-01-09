@@ -18,6 +18,12 @@ interface AuthResponse {
 
 export const AuthModal = () => {
   const [open, setOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [favorites, setFavorites] = useState<any[]>([]);
+  const [watchlist, setWatchlist] = useState<any[]>([]);
+  const [likes, setLikes] = useState<any[]>([]);
+  const [dislikes, setDislikes] = useState<any[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [signupData, setSignupData] = useState({ email: "", password: "", confirmPassword: "" });
   const [loading, setLoading] = useState(false);
@@ -49,6 +55,35 @@ export const AuthModal = () => {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [toast]);
+
+  // Load library items when library dialog opens
+  useEffect(() => {
+    const loadLibrary = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+      setLibraryLoading(true);
+      try {
+        const base = 'http://127.0.0.1:5000';
+        const [favRes, watchRes, likeRes, dislikeRes] = await Promise.all([
+          fetch(`${base}/user/favorites`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${base}/user/watchlist`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${base}/user/preferences?action=like`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${base}/user/preferences?action=dislike`, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+
+        if (favRes.ok) setFavorites(await favRes.json());
+        if (watchRes.ok) setWatchlist(await watchRes.json());
+        if (likeRes.ok) setLikes(await likeRes.json());
+        if (dislikeRes.ok) setDislikes(await dislikeRes.json());
+      } catch (e) {
+        console.error('Failed to load library', e);
+      } finally {
+        setLibraryLoading(false);
+      }
+    };
+
+    if (libraryOpen) void loadLibrary();
+  }, [libraryOpen]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,6 +215,54 @@ export const AuthModal = () => {
         <span className="text-sm text-muted-foreground">
           Welcome, {getUserEmail()}
         </span>
+        <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              My Library
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>My Library</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {libraryLoading ? (
+                <div>Loading...</div>
+              ) : (
+                <>
+                  <div>
+                    <h4 className="font-medium">Favorites</h4>
+                    <div className="mt-2 flex flex-col gap-2">
+                      {favorites.length ? favorites.map((f, i) => <div key={i}>{f.anime}</div>) : <div className="text-sm text-muted-foreground">No favorites</div>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium">Watchlist</h4>
+                    <div className="mt-2 flex flex-col gap-2">
+                      {watchlist.length ? watchlist.map((w, i) => <div key={i}>{w.anime}</div>) : <div className="text-sm text-muted-foreground">No items</div>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium">Likes</h4>
+                    <div className="mt-2 flex flex-col gap-2">
+                      {likes.length ? likes.map((l, i) => <div key={i}>{l.anime}</div>) : <div className="text-sm text-muted-foreground">No likes</div>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium">Dislikes</h4>
+                    <div className="mt-2 flex flex-col gap-2">
+                      {dislikes.length ? dislikes.map((d, i) => <div key={i}>{d.anime}</div>) : <div className="text-sm text-muted-foreground">No dislikes</div>}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Button
           variant="outline"
           onClick={handleLogout}

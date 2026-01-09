@@ -1,0 +1,11 @@
+INFO:content_based:Loaded & preprocessed 12232 anime. 'type' column ensured lowercase and present.
+INFO:__main__:Collaborative model loaded successfully
+INFO:__main__:Starting Flask app with config: {'content_weight': 0.6, 'collab_weight': 0.4, 'top_n_hybrid': 10, 'default_recommendations': 5, 'max_recommendations': 20, 'cache_timeout': 300}
+ * Serving Flask app 'app'
+ * Debug mode: on
+INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+INFO:werkzeug:[33mPress CTRL+C to quit[0m
+INFO:werkzeug: * Restarting with stat
+INFO:content_based:Loaded & preprocessed 12232 anime. 'type' column ensured lowercase and present.
+INFO:__main__:Collaborative model loaded successfully

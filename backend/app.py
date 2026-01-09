@@ -472,6 +472,147 @@ def logout():
         logger.error(f"Logout error: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
+
+# User favorites / watchlist endpoints
+@app.route('/user/favorites', methods=['GET', 'POST', 'DELETE'])
+@jwt_required()
+def user_favorites():
+    user_id = get_jwt_identity()
+    try:
+        if request.method == 'GET':
+            resp = supabase.table('favorites').select('*').eq('user_id', user_id).execute()
+            data = getattr(resp, 'data', None) or resp.get('data') if isinstance(resp, dict) else None
+            return jsonify(data or [])
+
+        body = request.get_json() or {}
+        anime_name = body.get('anime') or request.args.get('anime')
+        if not anime_name:
+            return jsonify({'error': 'anime name is required'}), 400
+
+        if request.method == 'POST':
+            payload = {
+                'user_id': user_id,
+                'anime': anime_name,
+                'added_at': datetime.datetime.utcnow().isoformat()
+            }
+            resp = supabase.table('favorites').insert(payload).execute()
+            err = getattr(resp, 'error', None) or (resp.get('error') if isinstance(resp, dict) else None)
+            if err:
+                err_msg = str(err) if err else 'Unknown error'
+                logger.error(f"Supabase insert error: {err_msg}")
+                return jsonify({'error': f'Failed to add favorite: {err_msg}'}), 500
+            return jsonify({'message': 'Added to favorites'}), 201
+
+        if request.method == 'DELETE':
+            resp = supabase.table('favorites').delete().eq('user_id', user_id).eq('anime', anime_name).execute()
+            err = getattr(resp, 'error', None) or (resp.get('error') if isinstance(resp, dict) else None)
+            if err:
+                err_msg = str(err) if err else 'Unknown error'
+                logger.error(f"Supabase delete error: {err_msg}")
+                return jsonify({'error': f'Failed to remove favorite: {err_msg}'}), 500
+            return jsonify({'message': 'Removed from favorites'}), 200
+
+    except Exception as e:
+        logger.error(f"Favorites endpoint error: {str(e)}", exc_info=True)
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+
+@app.route('/user/watchlist', methods=['GET', 'POST', 'DELETE'])
+@jwt_required()
+def user_watchlist():
+    user_id = get_jwt_identity()
+    try:
+        if request.method == 'GET':
+            resp = supabase.table('watchlist').select('*').eq('user_id', user_id).execute()
+            data = getattr(resp, 'data', None) or resp.get('data') if isinstance(resp, dict) else None
+            return jsonify(data or [])
+
+        body = request.get_json() or {}
+        anime_name = body.get('anime') or request.args.get('anime')
+        if not anime_name:
+            return jsonify({'error': 'anime name is required'}), 400
+
+        if request.method == 'POST':
+            payload = {
+                'user_id': user_id,
+                'anime': anime_name,
+                'added_at': datetime.datetime.utcnow().isoformat()
+            }
+            resp = supabase.table('watchlist').insert(payload).execute()
+            err = getattr(resp, 'error', None) or (resp.get('error') if isinstance(resp, dict) else None)
+            if err:
+                err_msg = str(err) if err else 'Unknown error'
+                logger.error(f"Supabase insert error: {err_msg}")
+                return jsonify({'error': f'Failed to add to watchlist: {err_msg}'}), 500
+            return jsonify({'message': 'Added to watchlist'}), 201
+
+        if request.method == 'DELETE':
+            resp = supabase.table('watchlist').delete().eq('user_id', user_id).eq('anime', anime_name).execute()
+            err = getattr(resp, 'error', None) or (resp.get('error') if isinstance(resp, dict) else None)
+            if err:
+                err_msg = str(err) if err else 'Unknown error'
+                logger.error(f"Supabase delete error: {err_msg}")
+                return jsonify({'error': f'Failed to remove from watchlist: {err_msg}'}), 500
+            return jsonify({'message': 'Removed from watchlist'}), 200
+
+    except Exception as e:
+        logger.error(f"Watchlist endpoint error: {str(e)}", exc_info=True)
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+
+@app.route('/user/preferences', methods=['GET', 'POST', 'DELETE'])
+@jwt_required()
+def user_preferences():
+    """Manage simple user preferences (like/dislike) stored in Supabase 'preferences' table."""
+    user_id = get_jwt_identity()
+    try:
+        if request.method == 'GET':
+            action = request.args.get('action')
+            query = supabase.table('preferences').select('*').eq('user_id', user_id)
+            if action:
+                query = query.eq('action', action)
+            resp = query.execute()
+            data = getattr(resp, 'data', None) or (resp.get('data') if isinstance(resp, dict) else None)
+            return jsonify(data or [])
+
+        body = request.get_json() or {}
+        anime_name = body.get('anime') or request.args.get('anime')
+        action = body.get('action') or request.args.get('action')
+        value = body.get('value')
+
+        if not anime_name or not action:
+            return jsonify({'error': 'anime and action are required'}), 400
+
+        if request.method == 'POST':
+            payload = {
+                'user_id': user_id,
+                'anime': anime_name,
+                'action': action,
+                'value': value,
+                'added_at': datetime.datetime.utcnow().isoformat()
+            }
+            resp = supabase.table('preferences').insert(payload).execute()
+            err = getattr(resp, 'error', None) or (resp.get('error') if isinstance(resp, dict) else None)
+            if err:
+                err_msg = str(err) if err else 'Unknown error'
+                logger.error(f"Supabase insert error (preferences): {err_msg}")
+                return jsonify({'error': f'Failed to add preference: {err_msg}'}), 500
+            return jsonify({'message': 'Preference added'}), 201
+
+        if request.method == 'DELETE':
+            # allow deletion by anime+action
+            resp = supabase.table('preferences').delete().eq('user_id', user_id).eq('anime', anime_name).eq('action', action).execute()
+            err = getattr(resp, 'error', None) or (resp.get('error') if isinstance(resp, dict) else None)
+            if err:
+                err_msg = str(err) if err else 'Unknown error'
+                logger.error(f"Supabase delete error (preferences): {err_msg}")
+                return jsonify({'error': f'Failed to remove preference: {err_msg}'}), 500
+            return jsonify({'message': 'Preference removed'}), 200
+
+    except Exception as e:
+        logger.error(f"Preferences endpoint error: {str(e)}", exc_info=True)
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 # Recommendation Endpoints (keeping all existing ones)
 @app.route('/recommend/content', methods=['GET'])
 @jwt_required()
